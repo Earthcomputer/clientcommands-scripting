@@ -7,10 +7,13 @@ import xyz.wagyourtail.jsmacros.client.JsMacros;
 
 public class ClientCommandsScripting implements ModInitializer {
     private static final Logger LOGGER = LogManager.getLogger();
+    public static final ClientCommandsLanguage LANGUAGE = new ClientCommandsLanguage(".clientcommands", JsMacros.core);
 
     @Override
     public void onInitialize() {
+        ScriptManager.reloadScripts();
+
         LOGGER.info("Injecting clientcommands into jsmacros");
-        JsMacros.core.addLanguage(new ClientCommandsLanguage("clientcommands", JsMacros.core));
+        JsMacros.core.addLanguage(LANGUAGE);
     }
 }

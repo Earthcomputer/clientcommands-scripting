@@ -21,5 +21,8 @@
   "depends": {
     "fabricloader": ">=0.11.3",
     "minecraft": "1.16.x"
-  }
+  },
+  "mixins": [
+    "clientcommands-scripting.mixins.json"
+  ]
 }

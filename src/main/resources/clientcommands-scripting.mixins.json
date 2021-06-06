@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "net.earthcomputer.clientcommands.script.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "KeyBindingAccessor",
+    "MixinClientCommands",
+    "MixinClientPlayerEntity",
+    "MixinKeyboardInput",
+    "MixinMinecraftClient",
+    "MixinMouse"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
