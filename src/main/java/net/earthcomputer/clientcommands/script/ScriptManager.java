@@ -23,9 +23,9 @@ import xyz.wagyourtail.jsmacros.client.JsMacros;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
 import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
 
-import javax.script.ScriptException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
@@ -129,6 +129,11 @@ public class ScriptManager {
         return threadStack.peek();
     }
 
+    static Context currentContext() {
+        Context context = Context.getCurrent();
+        return context.getBindings("js").getMember("context").<ContextContainer<Context>>asHostObject().getCtx().getContext().get();
+    }
+
     public static void executeScript(String scriptFile) throws CommandSyntaxException {
         if (!Files.exists(JsMacros.core.config.macroFolder.toPath().resolve(scriptFile))) {
             throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptFile);
@@ -158,23 +163,31 @@ public class ScriptManager {
         ThreadInstance thread = new ThreadInstance();
         thread.handle = handle;
         thread.javaThread = new Thread(() -> {
+            if (thread.parentContext != null) {
+                Context parentContext = thread.parentContext.get();
+                if (parentContext != null) {
+                    parentContext.enter();
+                }
+            }
             try {
                 task.call();
-            } catch (ScriptInterruptedException ignore) {
-            } catch (ScriptException e) {
-                if (!(e.getCause() instanceof ScriptInterruptedException)) {
-                    ClientCommandManager.sendError(new LiteralText(e.getMessage() == null ? e.toString() : e.getMessage()));
-                    e.getCause().printStackTrace();
-                }
             } catch (Throwable e) {
-                try {
-                    ClientCommandManager.sendError(new LiteralText(e.getMessage() == null ? e.toString() : e.getMessage()));
-                } catch (Throwable e1) {
-                    LOGGER.error("Error sending error to chat", e1);
+                if (!thread.killed && !thread.task.isCompleted()) {
+                    try {
+                        ClientCommandManager.sendError(new LiteralText(e.getMessage() == null ? e.toString() : e.getMessage()));
+                    } catch (Throwable e1) {
+                        LOGGER.error("Error sending error to chat", e1);
+                    }
+                    LOGGER.error("An error occurred in a script command: ", e);
                 }
-                LOGGER.error("An error occurred in a script command: ", e);
             }
             runningThreads.remove(thread);
+            if (thread.parentContext != null && !thread.killed && !thread.task.isCompleted()) {
+                Context parentContext = thread.parentContext.get();
+                if (parentContext != null) {
+                    parentContext.leave();
+                }
+            }
             if (thread.parent != null)
                 thread.parent.children.remove(thread);
             for (ThreadInstance child : thread.children) {
@@ -207,9 +220,13 @@ public class ScriptManager {
         runningThreads.add(thread);
         thread.running = true;
 
+        Context context = null;
         if (currentThread() != null) {
             currentThread().children.add(thread);
             thread.parent = currentThread();
+            context = currentContext();
+            context.leave();
+            thread.parentContext = new WeakReference<>(context);
         }
 
         threadStack.push(thread);
@@ -223,6 +240,10 @@ public class ScriptManager {
             }
         }
         threadStack.pop();
+
+        if (context != null) {
+            context.enter();
+        }
     }
 
     public static void tick() {
@@ -249,20 +270,19 @@ public class ScriptManager {
 
     static void passTick() {
         ThreadInstance thread = currentThread();
-        thread.blocked.set(true);
-        Context context = Context.getCurrent();
-        context = context.getBindings("js").getMember("context").<ContextContainer<Context>>asHostObject().getCtx().getContext().get();
-        assert context != null;
+        Context context = currentContext();
         context.leave();
+        thread.blocked.set(true);
         while (thread.blocked.get()) {
-            if (thread.killed || thread.task.isCompleted())
-                throw new ScriptInterruptedException();
             try {
                 //noinspection BusyWait
                 Thread.sleep(1);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+        if (thread.killed || thread.task.isCompleted()) {
+            throw new ScriptInterruptedException();
         }
         context.enter();
     }
@@ -330,6 +350,7 @@ public class ScriptManager {
         boolean paused;
         boolean killed;
         ThreadInstance parent;
+        WeakReference<Context> parentContext;
         List<ThreadInstance> children = new ArrayList<>(0);
 
         private Thread javaThread;
