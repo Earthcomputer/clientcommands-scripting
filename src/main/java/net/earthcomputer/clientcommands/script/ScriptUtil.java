@@ -1,9 +1,13 @@
 package net.earthcomputer.clientcommands.script;
 
-import jdk.nashorn.api.scripting.AbstractJSObject;
-import jdk.nashorn.api.scripting.JSObject;
-import jdk.nashorn.api.scripting.ScriptObjectMirror;
-import jdk.nashorn.api.scripting.ScriptUtils;
+import com.oracle.truffle.api.interop.ArityException;
+import com.oracle.truffle.api.interop.InteropLibrary;
+import com.oracle.truffle.api.interop.InvalidArrayIndexException;
+import com.oracle.truffle.api.interop.TruffleObject;
+import com.oracle.truffle.api.interop.UnsupportedMessageException;
+import com.oracle.truffle.api.interop.UnsupportedTypeException;
+import com.oracle.truffle.api.object.DynamicObject;
+import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.AbstractListTag;
@@ -29,6 +33,7 @@ import net.minecraft.util.registry.Registry;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -100,25 +105,39 @@ public class ScriptUtil {
                 ret.add(Array.get(input, i));
             return ret;
         }
-        if (input instanceof JSObject) {
-            JSObject jsObj = (JSObject) input;
-            if (jsObj.isArray()) {
-                int len = ScriptUtil.asNumber(jsObj.getMember("length")).intValue();
-                List<Object> ret = new ArrayList<>(len);
-                for (int i = 0; i < len; i++)
-                    ret.add(jsObj.getSlot(i));
+        if (input instanceof TruffleObject) {
+            InteropLibrary interop = InteropLibrary.getFactory().create(input);
+            try {
+                if (interop.isNumber(input)) {
+                    return asNumber(input);
+                }
+                if (interop.isString(input)) {
+                    return interop.asString(input);
+                }
+                if (interop.hasArrayElements(input)) {
+                    int len = (int) interop.getArraySize(input);
+                    List<Object> ret = new ArrayList<>(len);
+                    for (int i = 0; i < len; i++)
+                        ret.add(interop.readArrayElement(input, i));
+                    return ret;
+                }
+            } catch (UnsupportedMessageException | InvalidArrayIndexException e) {
+                throw new RuntimeException(e);
+            }
+            if (input instanceof DynamicObject) {
+                DynamicObject dynObj = (DynamicObject) input;
+                DynamicObjectLibrary dyn = DynamicObjectLibrary.getFactory().create(dynObj);
+                Map<String, Object> ret = new LinkedHashMap<>();
+                for (Object keyObj : dyn.getKeyArray(dynObj)) {
+                    String key = asString(keyObj);
+                    ret.put(key, dyn.getOrDefault(dynObj, keyObj, null));
+                }
                 return ret;
             }
-            if (jsObj.getClassName().equals("Object")) {
-                Map<String, Object> properties = new HashMap<>();
-                for (String key : jsObj.keySet())
-                    properties.put(key, jsObj.getMember(key));
-                return properties;
-            }
-            if (jsObj.getClassName().equals("Number")) {
-                return jsObj.toNumber();
-            }
+
+            return interop.toDisplayString(input);
         }
+
         return asString(input);
     }
 
@@ -178,7 +197,7 @@ public class ScriptUtil {
         return type;
     }
 
-    private static AbstractListTag listToNbtList(List<Object> list) {
+    private static AbstractListTag<?> listToNbtList(List<Object> list) {
         byte type = getListType(list);
         AbstractListTag<?> listTag;
         if (type == 1) // byte
@@ -275,75 +294,88 @@ public class ScriptUtil {
             return id.toString();
     }
 
-    public static Object safeWrap(Object obj) {
-        try {
-            return ScriptUtils.wrap(obj);
-        } catch (NoSuchMethodError e) {
-            // hackfix for older Java 8 builds
-            return ScriptObjectMirror.wrap(obj, getGlobalContext());
-        } catch (IllegalArgumentException e) {
-            return obj;
-        }
-    }
-
     public static boolean asBoolean(Object obj) {
         if (obj == null) return false;
-        obj = safeWrap(obj);
-        return (Boolean) ScriptUtils.convert(obj, Boolean.class);
+        if (obj instanceof Boolean) return (Boolean) obj;
+        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
+        if (interop.isNull(obj)) return false;
+        try {
+            if (interop.isBoolean(obj)) return interop.asBoolean(obj);
+        } catch (UnsupportedMessageException e) {
+            throw new RuntimeException(e);
+        }
+        return false;
     }
 
     public static Number asNumber(Object obj) {
         if (obj == null) return 0;
-        obj = safeWrap(obj);
-        if (obj instanceof JSObject) {
-            return (Number) AbstractJSObject.getDefaultValue((JSObject) obj, Number.class);
-        } else {
-            return (Number) ScriptUtils.convert(obj, Number.class);
+        if (obj instanceof Number) return (Number) obj;
+        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
+        if (interop.isNull(obj)) return 0;
+        try {
+            if (interop.isNumber(obj)) {
+                if (interop.fitsInByte(obj)) {
+                    return interop.asByte(obj);
+                }
+                if (interop.fitsInShort(obj)) {
+                    return interop.asShort(obj);
+                }
+                if (interop.fitsInInt(obj)) {
+                    return interop.asInt(obj);
+                }
+                if (interop.fitsInFloat(obj)) {
+                    return interop.asFloat(obj);
+                }
+                if (interop.fitsInLong(obj)) {
+                    return interop.asLong(obj);
+                }
+                if (interop.fitsInDouble(obj)) {
+                    return interop.asDouble(obj);
+                }
+            }
+        } catch (UnsupportedMessageException e) {
+            throw new RuntimeException(e);
         }
+        return 0;
     }
 
     public static String asString(Object obj) {
         if (obj == null) return null;
-        obj = safeWrap(obj);
-        if (obj instanceof JSObject) {
-            return (String) AbstractJSObject.getDefaultValue((JSObject) obj, String.class);
-        } else {
-            return String.valueOf(obj);
+        if (obj instanceof String) return (String) obj;
+        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
+        if (interop.isNull(obj)) return null;
+        try {
+            if (interop.isString(obj)) return interop.asString(obj);
+            return interop.asString(interop.toDisplayString(obj));
+        } catch (UnsupportedMessageException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public static boolean isFunction(Object obj) {
-        try {
-            asFunction(obj);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
+        return interop.isExecutable(obj);
     }
 
-    public static JSObject asFunction(Object obj) {
-        obj = safeWrap(obj);
-        if (obj instanceof JSObject && ((JSObject) obj).isFunction())
-            return (JSObject) obj;
+    public static ScriptFunction asFunction(Object obj) {
+        if (obj == null) return null;
+        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
+        if (interop.isExecutable(obj)) {
+            return args -> {
+                try {
+                    return interop.execute(obj, args);
+                } catch (UnsupportedMessageException | UnsupportedTypeException | ArityException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+        }
         throw new IllegalArgumentException("Cannot interpret " + obj + " as a function");
     }
 
-    public static JSObject asObject(Object obj) {
-        obj = safeWrap(obj);
-        if (obj instanceof JSObject)
-            return (JSObject) obj;
+    public static DynamicObject asObject(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof DynamicObject) return (DynamicObject) obj;
         throw new IllegalArgumentException("Cannot interpret " + obj + " as an object");
-    }
-
-    // unsafe function, should only be used for compatibility with older Java releases
-    private static Object getGlobalContext() {
-        try {
-            return Class.forName("jdk.nashorn.internal.runtime.Context")
-                    .getMethod("getGlobal")
-                    .invoke(null);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException("Unable to get global context", e);
-        }
     }
 
     static Direction getDirectionFromString(String side) {
@@ -361,14 +393,15 @@ public class ScriptUtil {
     }
 
     static Predicate<ItemStack> asItemStackPredicate(Object obj) {
-        if (obj instanceof String) {
-            Item item = Registry.ITEM.get(new Identifier((String) obj));
+        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
+        if (interop.isString(obj)) {
+            Item item = Registry.ITEM.get(new Identifier(asString(obj)));
             return stack -> stack.getItem() == item;
         } else if (isFunction(obj)) {
-            JSObject func = asFunction(obj);
+            ScriptFunction func = asFunction(obj);
             return stack -> {
                 Object tag = fromNbt(stack.toTag(new CompoundTag()));
-                return asBoolean(func.call(null, tag));
+                return asBoolean(func.call(tag));
             };
         } else {
             Tag nbt = toNbt(obj);

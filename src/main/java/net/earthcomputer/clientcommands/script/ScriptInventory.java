@@ -1,7 +1,9 @@
 package net.earthcomputer.clientcommands.script;
 
 import com.google.common.collect.Lists;
-import jdk.nashorn.api.scripting.JSObject;
+import com.oracle.truffle.api.nodes.UnexpectedResultException;
+import com.oracle.truffle.api.object.DynamicObject;
+import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import net.earthcomputer.clientcommands.interfaces.ISlot;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
@@ -76,27 +78,29 @@ public class ScriptInventory {
         click(slot, null);
     }
 
-    public void click(Integer slot, JSObject options) {
-        String typeStr = options == null || !options.hasMember("type") ? null : ScriptUtil.asString(options.getMember("type"));
+    public void click(Integer slot, DynamicObject options) {
+        DynamicObjectLibrary optionsLib = options != null ? DynamicObjectLibrary.getFactory().create(options) : null;
+        String typeStr = options != null ? ScriptUtil.asString(optionsLib.getOrDefault(options, "type", null)) : null;
         SlotActionType type = typeStr == null ? SlotActionType.PICKUP :
                 Arrays.stream(SlotActionType.values()).filter(it -> it.name().equalsIgnoreCase(typeStr)).findAny().orElse(SlotActionType.PICKUP);
 
         int mouseButton;
-        if (type == SlotActionType.SWAP) {
-            if (!options.hasMember("hotbarSlot"))
-                throw new IllegalArgumentException("When the click type is swap, the options must also contain the hotbar slot to swap with");
-            mouseButton = MathHelper.clamp(ScriptUtil.asNumber(options.getMember("hotbarSlot")).intValue(), 0, 8);
-        } else if (type == SlotActionType.QUICK_CRAFT) {
-            if (!options.hasMember("quickCraftStage"))
-                throw new IllegalArgumentException("When the click type is quick_craft, the options must also contain the quick craft stage");
-            int quickCraftStage = ScriptUtil.asNumber(options.getMember("quickCraftStage")).intValue();
-            int button = options.hasMember("rightClick") && ScriptUtil.asBoolean(options.getMember("rightClick")) ? 1 : 0;
-            mouseButton = ScreenHandler.packQuickCraftData(quickCraftStage, button);
-        } else {
-            if (options == null || !options.hasMember("rightClick"))
-                mouseButton = 0;
-            else
-                mouseButton = ScriptUtil.asBoolean(options.getMember("rightClick")) ? 1 : 0;
+        try {
+            if (type == SlotActionType.SWAP) {
+                if (!optionsLib.containsKey(options, "hotbarSlot"))
+                    throw new IllegalArgumentException("When the click type is swap, the options must also contain the hotbar slot to swap with");
+                mouseButton = MathHelper.clamp(optionsLib.getIntOrDefault(options, "hotbarSlot", 0), 0, 8);
+            } else if (type == SlotActionType.QUICK_CRAFT) {
+                if (!optionsLib.containsKey(options, "quickCraftStage"))
+                    throw new IllegalArgumentException("When the click type is quick_craft, the options must also contain the quick craft stage");
+                int quickCraftStage = optionsLib.getIntOrDefault(options, "quickCraftStage", 0);
+                int button = ScriptUtil.asBoolean(optionsLib.getOrDefault(options, "rightClick", false)) ? 1 : 0;
+                mouseButton = ScreenHandler.packQuickCraftData(quickCraftStage, button);
+            } else {
+                mouseButton = options != null ? ScriptUtil.asBoolean(optionsLib.getOrDefault(options, "rightClick", false)) ? 1 : 0 : 0;
+            }
+        } catch (UnexpectedResultException e) {
+            throw new RuntimeException(e);
         }
 
         int slotId;
