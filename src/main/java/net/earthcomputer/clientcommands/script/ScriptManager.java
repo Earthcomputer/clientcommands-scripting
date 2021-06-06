@@ -18,8 +18,10 @@ import net.minecraft.text.TranslatableText;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.graalvm.polyglot.Context;
 import xyz.wagyourtail.jsmacros.client.JsMacros;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
+import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
 
 import javax.script.ScriptException;
 import java.io.IOException;
@@ -248,6 +250,10 @@ public class ScriptManager {
     static void passTick() {
         ThreadInstance thread = currentThread();
         thread.blocked.set(true);
+        Context context = Context.getCurrent();
+        context = context.getBindings("js").getMember("context").<ContextContainer<Context>>asHostObject().getCtx().getContext().get();
+        assert context != null;
+        context.leave();
         while (thread.blocked.get()) {
             if (thread.killed || thread.task.isCompleted())
                 throw new ScriptInterruptedException();
@@ -258,6 +264,7 @@ public class ScriptManager {
                 Thread.currentThread().interrupt();
             }
         }
+        context.enter();
     }
 
     static void blockInput(boolean blockInput) {

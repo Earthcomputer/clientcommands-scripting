@@ -1,13 +1,14 @@
 package net.earthcomputer.clientcommands.script;
 
 import net.minecraft.client.MinecraftClient;
+import xyz.wagyourtail.jsmacros.core.language.impl.JavascriptLanguageDefinition;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 import xyz.wagyourtail.jsmacros.core.library.Library;
 
 import java.util.concurrent.Callable;
 
 @SuppressWarnings("unused")
-@Library("cc")
+@Library(value = "cc", languages = JavascriptLanguageDefinition.class)
 public class ClientCommandsLibrary extends BaseLibrary {
     public Object exec(String command) {
         return ScriptBuiltins.exec(command);
