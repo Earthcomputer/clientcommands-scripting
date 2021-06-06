@@ -1,0 +1,5 @@
+{
+  "commands.cscript.notFound": "Skrip \"%s\" tidak ketemu",
+  "commands.cscript.reload.success": "Skrip telah direload",
+  "commands.cscript.run.success": "Skrip telah berhasil jalan"
+}

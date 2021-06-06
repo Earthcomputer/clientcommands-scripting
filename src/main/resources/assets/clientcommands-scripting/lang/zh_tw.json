@@ -1,0 +1,5 @@
+{
+  "commands.cscript.notFound": "未找到腳本 \"%s\"",
+  "commands.cscript.reload.success": "已重新加載腳本",
+  "commands.cscript.run.success": "成功運行腳本"
+}

@@ -1,0 +1,5 @@
+{
+  "commands.cscript.notFound": "Skrypt \"%s\" nie istnieje",
+  "commands.cscript.reload.success": "Przeładowano skrypty",
+  "commands.cscript.run.success": "Wykonano skrypt pomyślnie"
+}

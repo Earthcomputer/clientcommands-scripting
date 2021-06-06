@@ -2,18 +2,24 @@ package net.earthcomputer.clientcommands.script;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.earthcomputer.clientcommands.command.ClientCommandManager;
 import net.earthcomputer.clientcommands.task.LongTask;
 import net.earthcomputer.clientcommands.task.SimpleTask;
 import net.earthcomputer.clientcommands.task.TaskManager;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.command.CommandSource;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.TranslatableText;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import xyz.wagyourtail.jsmacros.client.JsMacros;
+import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
 
 import javax.script.ScriptException;
 import java.io.IOException;
@@ -34,40 +40,56 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class ScriptManager {
-
     private static final Logger LOGGER = LogManager.getLogger("ScriptManager");
     private static final DynamicCommandExceptionType SCRIPT_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(arg -> new TranslatableText("commands.cscript.notFound", arg));
+    public static boolean isJsMacrosPresent = FabricLoader.getInstance().isModLoaded("jsmacros");
 
-    private static Path scriptDir;
-    private static final Map<String, String> scripts = new HashMap<>();
+    private static ClientCommandsLanguage language;
+
+    private static Path legacyScriptsDir;
+    private static final Map<String, String> legacyScripts = new HashMap<>();
 
     private static final Deque<ThreadInstance> threadStack = new ArrayDeque<>();
     private static final List<ThreadInstance> runningThreads = new ArrayList<>();
 
     private static final AtomicInteger nextThreadId = new AtomicInteger();
 
-    public static void reloadScripts() {
-        LOGGER.info("Reloading clientcommands scripts");
-
-        scriptDir = ClientCommandsScripting.configDir.resolve("scripts");
-        try {
-            if (!Files.exists(scriptDir)) {
-                Files.createDirectories(scriptDir);
-            }
-        } catch (IOException e) {
-            LOGGER.error("Unable to create scripts directory", e);
+    public static void inject() {
+        if (!isJsMacrosPresent) {
+            LOGGER.info("Clientcommands scripts are disabled because jsmacros is not present");
+            return;
         }
 
-        scripts.clear();
+        LOGGER.info("Injecting clientcommands into jsmacros");
+        language = new ClientCommandsLanguage(".clientcommands", JsMacros.core);
+        JsMacros.core.addLanguage(language);
+    }
+
+    public static void reloadLegacyScripts() {
+        if (!isJsMacrosPresent) {
+            return;
+        }
+
+        LOGGER.info("Reloading legacy clientcommands scripts");
+
+        legacyScriptsDir = ClientCommandsScripting.configDir.resolve("scripts");
+
+        legacyScripts.clear();
+
+        if (!Files.exists(legacyScriptsDir)) {
+            return;
+        }
 
         try {
-            Files.walk(scriptDir, FileVisitOption.FOLLOW_LINKS)
+            Files.walk(legacyScriptsDir, FileVisitOption.FOLLOW_LINKS)
                     .filter(Files::isRegularFile)
                     .forEach(path -> {
                         try {
-                            scripts.put(scriptDir.relativize(path).toString(), FileUtils.readFileToString(path.toFile(), StandardCharsets.UTF_8));
+                            legacyScripts.put(legacyScriptsDir.relativize(path).toString(), FileUtils.readFileToString(path.toFile(), StandardCharsets.UTF_8));
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
@@ -77,22 +99,52 @@ public class ScriptManager {
         }
     }
 
-    public static Set<String> getScriptNames() {
-        return Collections.unmodifiableSet(scripts.keySet());
+    public static SuggestionProvider<ServerCommandSource> getScriptSuggestions() {
+        if (!isJsMacrosPresent) {
+            return (ctx, builder) -> builder.buildFuture();
+        }
+        return (ctx, builder) -> CompletableFuture.supplyAsync(() -> {
+            Path macroFolder = JsMacros.core.config.macroFolder.toPath();
+            if (!Files.exists(macroFolder)) {
+                return builder.build();
+            }
+            try {
+                return CommandSource.suggestMatching(Files.walk(macroFolder)
+                        .filter(Files::isRegularFile)
+                        .map(path -> macroFolder.relativize(path).toString()), builder).join();
+            } catch (IOException e) {
+                return builder.build();
+            }
+        });
+    }
+
+    public static Set<String> getLegacyScriptNames() {
+        return Collections.unmodifiableSet(legacyScripts.keySet());
     }
 
     static ThreadInstance currentThread() {
         return threadStack.peek();
     }
 
-    public static void execute(String scriptName) throws CommandSyntaxException {
-        String scriptSource = scripts.get(scriptName);
+    public static void executeScript(String scriptFile) throws CommandSyntaxException {
+        if (!Files.exists(JsMacros.core.config.macroFolder.toPath().resolve(scriptFile))) {
+            throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptFile);
+        }
+        execute0((then, catcher) -> JsMacros.core.exec(new ScriptTrigger(ScriptTrigger.TriggerType.EVENT, "", scriptFile, true), null, then, catcher));
+    }
+
+    public static void executeLegacyScript(String scriptName) throws CommandSyntaxException {
+        String scriptSource = legacyScripts.get(scriptName);
         if (scriptSource == null)
             throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptName);
 
+        execute0((then, catcher) -> language.trigger(scriptSource, then, catcher));
+    }
+
+    private static void execute0(BiConsumer<Runnable, Consumer<Throwable>> runner) {
         ThreadInstance thread = new ScriptThread(() -> {
             CompletableFuture<Void> future = new CompletableFuture<>();
-            ClientCommandsScripting.LANGUAGE.trigger(scriptSource, () -> future.complete(null), future::completeExceptionally);
+            runner.accept(() -> future.complete(null), future::completeExceptionally);
             future.join();
             return null;
         }, false).thread;
@@ -171,6 +223,10 @@ public class ScriptManager {
     }
 
     public static void tick() {
+        if (!isJsMacrosPresent) {
+            return;
+        }
+
         for (ThreadInstance thread : new ArrayList<>(runningThreads)) {
             if (thread.paused || !thread.running) continue;
 

@@ -1,0 +1,5 @@
+{
+  "commands.cscript.notFound": "Script \"%s\" niet gevonden",
+  "commands.cscript.reload.success": "scripten herladen",
+  "commands.cscript.run.success": "Script succesvol uitgevoerd"
+}

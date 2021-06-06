@@ -1,0 +1,8 @@
+{
+  "commands.cscript.nojsmacros": "JSMacros must be installed to use this command. Download JSMacros from %s.",
+  "commands.cscript.nojsmacros.link": "here",
+  "commands.cscript.notFound": "Script \"%s\" not found",
+  "commands.cscript.reload.success": "Reloaded legacy scripts",
+  "commands.cscript.run.deprecated": "\"/cscript run\" is deprecated. Please migrate your scripts to JSMacros and use \"/cscript exec\" instead. The clientcommands library is still available under the namespace \"cc.\"",
+  "commands.cscript.run.success": "Script ran successfully"
+}
