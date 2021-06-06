@@ -66,6 +66,11 @@ class ScriptBuiltins {
             .put("isLoggedIn", (BooleanSupplier) () -> MinecraftClient.getInstance().player != null)
             .build();
 
+    private static final Map<String, Object> GLOBAL_VARS = ImmutableMap.<String, Object>builder()
+            .put("player", new ScriptPlayer())
+            .put("world", new ScriptWorld())
+            .build();
+
     private static final Map<String, Class<?>> GLOBAL_TYPES = ImmutableMap.<String, Class<?>>builder()
             .put("Thread", ScriptThread.class)
             .put("BlockState", ScriptBlockState.class)
@@ -74,6 +79,10 @@ class ScriptBuiltins {
 
     public static Map<String, Object> getGlobalFunctions() {
         return GLOBAL_FUNCTIONS;
+    }
+
+    public static Map<String, Object> getGlobalVars() {
+        return GLOBAL_VARS;
     }
 
     public static Map<String, Class<?>> getGlobalTypes() {

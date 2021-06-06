@@ -2,7 +2,6 @@ package net.earthcomputer.clientcommands.script;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
-import net.earthcomputer.clientcommands.ClientCommands;
 import net.earthcomputer.clientcommands.command.ClientCommandManager;
 import net.earthcomputer.clientcommands.task.LongTask;
 import net.earthcomputer.clientcommands.task.SimpleTask;
@@ -17,7 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.script.ScriptException;
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -41,8 +40,8 @@ public class ScriptManager {
     private static final Logger LOGGER = LogManager.getLogger("ScriptManager");
     private static final DynamicCommandExceptionType SCRIPT_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(arg -> new TranslatableText("commands.cscript.notFound", arg));
 
-    private static File scriptDir;
-    private static Map<String, String> scripts = new HashMap<>();
+    private static Path scriptDir;
+    private static final Map<String, String> scripts = new HashMap<>();
 
     private static final Deque<ThreadInstance> threadStack = new ArrayDeque<>();
     private static final List<ThreadInstance> runningThreads = new ArrayList<>();
@@ -52,19 +51,23 @@ public class ScriptManager {
     public static void reloadScripts() {
         LOGGER.info("Reloading clientcommands scripts");
 
-        scriptDir = new File(ClientCommands.configDir, "scripts");
-        //noinspection ResultOfMethodCallIgnored
-        scriptDir.mkdirs();
-        Path scriptDirPath = scriptDir.toPath();
+        scriptDir = ClientCommandsScripting.configDir.resolve("scripts");
+        try {
+            if (!Files.exists(scriptDir)) {
+                Files.createDirectories(scriptDir);
+            }
+        } catch (IOException e) {
+            LOGGER.error("Unable to create scripts directory", e);
+        }
 
         scripts.clear();
 
         try {
-            Files.walk(scriptDirPath, FileVisitOption.FOLLOW_LINKS)
+            Files.walk(scriptDir, FileVisitOption.FOLLOW_LINKS)
                     .filter(Files::isRegularFile)
                     .forEach(path -> {
                         try {
-                            scripts.put(scriptDirPath.relativize(path).toString(), FileUtils.readFileToString(path.toFile(), StandardCharsets.UTF_8));
+                            scripts.put(scriptDir.relativize(path).toString(), FileUtils.readFileToString(path.toFile(), StandardCharsets.UTF_8));
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
@@ -88,7 +91,9 @@ public class ScriptManager {
             throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptName);
 
         ThreadInstance thread = new ScriptThread(() -> {
-            ClientCommandsScripting.LANGUAGE.trigger(scriptSource, null, null);
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            ClientCommandsScripting.LANGUAGE.trigger(scriptSource, () -> future.complete(null), future::completeExceptionally);
+            future.join();
             return null;
         }, false).thread;
         runThread(thread);

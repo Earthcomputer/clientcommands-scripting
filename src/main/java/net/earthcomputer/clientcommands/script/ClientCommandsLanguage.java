@@ -4,7 +4,9 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
+import xyz.wagyourtail.jsmacros.client.JsMacros;
 import xyz.wagyourtail.jsmacros.core.Core;
+import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
 import xyz.wagyourtail.jsmacros.core.language.impl.JavascriptLanguageDefinition;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 
@@ -14,6 +16,11 @@ import java.util.Map;
 
 public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
     private static final Engine engine = Engine.create();
+    private static final JavascriptLanguageDefinition jsLanguage = JsMacros.core.languages.stream()
+            .filter(it -> it.getClass() == JavascriptLanguageDefinition.class)
+            .findFirst()
+            .map(it -> (JavascriptLanguageDefinition) it)
+            .orElseThrow(AssertionError::new);
 
     public ClientCommandsLanguage(String extension, Core runner) {
         super(extension, runner);
@@ -43,16 +50,29 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
         final Value binds = con.getBindings("js");
 
         globals.putAll(ScriptBuiltins.getGlobalFunctions());
+        globals.putAll(ScriptBuiltins.getGlobalVars());
 
         globals.forEach(binds::putMember);
-
-        libs.forEach(binds::putMember);
 
         ScriptBuiltins.getGlobalTypes().forEach((name, clazz) -> {
             globals.put(name, con.eval("js", "Java.type('" + clazz.getName() + "')"));
         });
 
         return con;
+    }
 
+    @Override
+    public Map<String, BaseLibrary> retrieveLibs(ContextContainer<Context> context) {
+        return jsLanguage.retrieveLibs(context);
+    }
+
+    @Override
+    public Map<String, BaseLibrary> retrieveOnceLibs() {
+        return jsLanguage.retrieveOnceLibs();
+    }
+
+    @Override
+    public Map<String, BaseLibrary> retrievePerExecLibs(ContextContainer<Context> context) {
+        return jsLanguage.retrievePerExecLibs(context);
     }
 }
