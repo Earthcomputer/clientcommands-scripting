@@ -51,9 +51,10 @@ import java.util.function.Supplier;
 
 @SuppressWarnings("unused")
 public class ScriptPlayer extends ScriptLivingEntity {
+    static final ScriptPlayer INSTANCE = new ScriptPlayer();
 
     ScriptPlayer() {
-        super(MinecraftClient.getInstance().player);
+        super(null);
     }
 
     @Override
@@ -330,11 +331,15 @@ public class ScriptPlayer extends ScriptLivingEntity {
         getEntity().inventory.selectedSlot = MathHelper.clamp(slot, 0, 8);
     }
 
-    public ScriptInventory getInventory() {
-        return new ScriptInventory(getEntity().playerScreenHandler);
+    public Object getInventory() {
+        return BeanWrapper.wrap(new ScriptInventory(getEntity().playerScreenHandler));
     }
 
-    public ScriptInventory getCurrentContainer() {
+    public Object getCurrentContainer() {
+        return BeanWrapper.wrap(getCurrentContainerUnchecked());
+    }
+
+    private ScriptInventory getCurrentContainerUnchecked() {
         ScreenHandler container = getEntity().currentScreenHandler;
         if (container == getEntity().playerScreenHandler)
             return null;
@@ -364,7 +369,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
             return false;
 
         int timeout = 0;
-        while (getCurrentContainer() == null || !containerTypePredicate.test(getCurrentContainer().getType())) {
+        while (getCurrentContainerUnchecked() == null || !containerTypePredicate.test(getCurrentContainerUnchecked().getType())) {
             ScriptManager.passTick();
             timeout++;
             if (timeout > 100)

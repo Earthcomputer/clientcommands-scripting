@@ -22,6 +22,7 @@ public class ScriptCommand {
                     .styled(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, JSMACROS_URL))
                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText(JSMACROS_URL)))
                             .withUnderline(true))));
+    private static boolean warnedDeprecated = false;
 
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
         addClientSideCommand("cscript");
@@ -49,7 +50,10 @@ public class ScriptCommand {
         if (!ScriptManager.isJsMacrosPresent) {
             throw NO_JSMACROS_EXCEPTION.create();
         }
-        sendFeedback(new TranslatableText("commands.cscript.run.deprecated").formatted(Formatting.YELLOW));
+        if (!warnedDeprecated) {
+            warnedDeprecated = true;
+            sendFeedback(new TranslatableText("commands.cscript.run.deprecated").formatted(Formatting.YELLOW));
+        }
         ScriptManager.executeLegacyScript(name);
         sendFeedback("commands.cscript.run.success");
         return 0;

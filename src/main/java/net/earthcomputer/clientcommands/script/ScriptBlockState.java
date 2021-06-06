@@ -21,11 +21,15 @@ import java.util.Locale;
 @SuppressWarnings("unused")
 public class ScriptBlockState {
 
-    public static ScriptBlockState defaultState(String block) {
+    static ScriptBlockState uncheckedDefaultState(String block) {
         Identifier id = new Identifier(block);
         if (!Registry.BLOCK.containsId(id))
             throw new IllegalArgumentException("No such block: " + block);
         return new ScriptBlockState(Registry.BLOCK.get(id).getDefaultState());
+    }
+
+    public static Object defaultState(String block) {
+        return BeanWrapper.wrap(uncheckedDefaultState(block));
     }
 
     BlockState state;

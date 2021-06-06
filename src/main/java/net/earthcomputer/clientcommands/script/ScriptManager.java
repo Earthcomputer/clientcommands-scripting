@@ -67,6 +67,7 @@ public class ScriptManager {
         LOGGER.info("Injecting clientcommands into jsmacros");
         language = new ClientCommandsLanguage(".clientcommands", JsMacros.core);
         JsMacros.core.addLanguage(language);
+        JsMacros.core.libraryRegistry.addLibrary(ClientCommandsLibrary.class);
     }
 
     public static void reloadLegacyScripts() {

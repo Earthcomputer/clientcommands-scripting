@@ -21,7 +21,7 @@ public class ScriptItemStack {
         this.stack = stack;
     }
 
-    public static ScriptItemStack of(Object obj) {
+    static ScriptItemStack ofUnchecked(Object obj) {
         Tag itemNbt = ScriptUtil.toNbt(obj);
         if (!(itemNbt instanceof CompoundTag)) {
             Identifier itemId = new Identifier(ScriptUtil.asString(obj));
@@ -33,12 +33,16 @@ public class ScriptItemStack {
         return new ScriptItemStack(stack);
     }
 
+    public static Object of(Object obj) {
+        return BeanWrapper.wrap(ofUnchecked(obj));
+    }
+
     public Object getStack() {
         return ScriptUtil.fromNbtCompound(stack.toTag(new CompoundTag()));
     }
 
     public float getMiningSpeed(String block) {
-        return getMiningSpeed(ScriptBlockState.defaultState(block));
+        return getMiningSpeed(ScriptBlockState.uncheckedDefaultState(block));
     }
 
     public float getMiningSpeed(ScriptBlockState block) {
@@ -46,7 +50,7 @@ public class ScriptItemStack {
     }
 
     public boolean isEffectiveOn(String block) {
-        return isEffectiveOn(ScriptBlockState.defaultState(block));
+        return isEffectiveOn(ScriptBlockState.uncheckedDefaultState(block));
     }
 
     public boolean isEffectiveOn(ScriptBlockState block) {

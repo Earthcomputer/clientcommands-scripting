@@ -51,12 +51,11 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
 
         globals.putAll(ScriptBuiltins.getGlobalFunctions());
         globals.putAll(ScriptBuiltins.getGlobalVars());
-
-        globals.forEach(binds::putMember);
-
         ScriptBuiltins.getGlobalTypes().forEach((name, clazz) -> {
             globals.put(name, con.eval("js", "Java.type('" + clazz.getName() + "')"));
         });
+
+        globals.forEach(binds::putMember);
 
         return con;
     }

@@ -19,6 +19,7 @@ import net.minecraft.world.LightType;
 
 @SuppressWarnings("unused")
 public class ScriptWorld {
+    static final ScriptWorld INSTANCE = new ScriptWorld();
 
     ScriptWorld() {}
 
@@ -38,11 +39,15 @@ public class ScriptWorld {
     }
 
     public Object getBlockProperty(int x, int y, int z, String property) {
-        return getBlockState(x, y, z).getProperty(property);
+        return getBlockStateUnchecked(x, y, z).getProperty(property);
     }
 
-    public ScriptBlockState getBlockState(int x, int y, int z) {
+    ScriptBlockState getBlockStateUnchecked(int x, int y, int z) {
         return new ScriptBlockState(getWorld().getBlockState(new BlockPos(x, y, z)));
+    }
+
+    public Object getBlockState(int x, int y, int z) {
+        return BeanWrapper.wrap(getBlockStateUnchecked(x, y, z));
     }
 
     public Object getBlockEntityNbt(int x, int y, int z) {
@@ -60,13 +65,13 @@ public class ScriptWorld {
         return getWorld().getLightLevel(LightType.SKY, new BlockPos(x, y, z));
     }
 
-    public ScriptPosition getClosestVisiblePoint(int x, int y, int z) {
+    public Object getClosestVisiblePoint(int x, int y, int z) {
         return getClosestVisiblePoint(x, y, z, null);
     }
 
-    public ScriptPosition getClosestVisiblePoint(int x, int y, int z, String side) {
+    public Object getClosestVisiblePoint(int x, int y, int z, String side) {
         Vec3d ret = getClosestVisiblePoint0(x, y, z, side, false);
-        return ret == null ? null : new ScriptPosition(ret);
+        return ret == null ? null : BeanWrapper.wrap(new ScriptPosition(ret));
     }
 
     static Vec3d getClosestVisiblePoint0(int x, int y, int z, String side, boolean keepExistingHitResult) {

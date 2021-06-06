@@ -15,7 +15,11 @@ public class ScriptEntity {
     private WeakReference<Entity> entity;
     private int entityId;
 
-    static ScriptEntity create(Entity entity) {
+    static Object create(Entity entity) {
+        return BeanWrapper.wrap(createUnchecked(entity));
+    }
+
+    static ScriptEntity createUnchecked(Entity entity) {
         if (entity == MinecraftClient.getInstance().player) {
             return new ScriptPlayer();
         } else if (entity instanceof LivingEntity) {
