@@ -1,10 +1,10 @@
 package net.earthcomputer.clientcommands.script;
 
 import com.google.common.collect.Lists;
-import net.earthcomputer.clientcommands.interfaces.IBlock;
-import net.earthcomputer.clientcommands.interfaces.IFireBlock;
-import net.earthcomputer.clientcommands.interfaces.IMaterial;
-import net.earthcomputer.clientcommands.mixin.BlockSettingsAccessor;
+import net.earthcomputer.clientcommands.script.ducks.IMaterial;
+import net.earthcomputer.clientcommands.script.mixin.AbstractBlockAccessor;
+import net.earthcomputer.clientcommands.script.mixin.AbstractBlockSettingsAccessor;
+import net.earthcomputer.clientcommands.script.mixin.FireBlockAccessor;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.FallingBlock;
@@ -62,7 +62,7 @@ public class ScriptBlockState {
     }
 
     public float getHardness() {
-        return ((BlockSettingsAccessor) ((IBlock) state.getBlock()).getSettings()).getHardness();
+        return ((AbstractBlockSettingsAccessor) ((AbstractBlockAccessor) state.getBlock()).getSettings()).getHardness();
     }
 
     public float getBlastResistance() {
@@ -135,11 +135,11 @@ public class ScriptBlockState {
     }
 
     public int getBurnChance() {
-        return ((IFireBlock) Blocks.FIRE).callGetBurnChance(state);
+        return ((FireBlockAccessor) Blocks.FIRE).callGetBurnChance(state);
     }
 
     public int getSpreadChance() {
-        return ((IFireBlock) Blocks.FIRE).callGetSpreadChance(state);
+        return ((FireBlockAccessor) Blocks.FIRE).callGetSpreadChance(state);
     }
 
     public boolean isFallable() {

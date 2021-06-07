@@ -6,7 +6,7 @@ import net.earthcomputer.clientcommands.features.PathfindingHints;
 import net.earthcomputer.clientcommands.features.PlayerPathfinder;
 import net.earthcomputer.clientcommands.features.Relogger;
 import net.earthcomputer.clientcommands.interfaces.IBlockChangeListener;
-import net.earthcomputer.clientcommands.interfaces.IMinecraftClient;
+import net.earthcomputer.clientcommands.script.ducks.IMinecraftClient;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;

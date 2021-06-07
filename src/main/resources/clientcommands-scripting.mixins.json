@@ -3,10 +3,14 @@
   "package": "net.earthcomputer.clientcommands.script.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
+    "AbstractBlockAccessor",
+    "AbstractBlockSettingsAccessor",
+    "FireBlockAccessor",
     "KeyBindingAccessor",
     "MixinClientCommands",
     "MixinClientPlayerEntity",
     "MixinKeyboardInput",
+    "MixinMaterial",
     "MixinMinecraftClient",
     "MixinMouse"
   ],
