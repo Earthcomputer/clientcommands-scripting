@@ -29,7 +29,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    modImplementation "net.earthcomputer.clientcommands:clientcommands:${project.clientcommands_version}"
+    modImplementation "net.earthcomputer.clientcommands:clientcommands:${project.clientcommands_version}:slim"
     modImplementation 'net.earthcomputer.multiconnect:multiconnect-api:1.3.36'
     modImplementation "curse.maven:jsmacros-403185:${project.jsmacros_version}"
 
