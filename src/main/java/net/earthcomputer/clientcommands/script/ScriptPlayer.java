@@ -1,9 +1,6 @@
 package net.earthcomputer.clientcommands.script;
 
 import com.google.common.collect.ImmutableSet;
-import com.oracle.truffle.api.nodes.UnexpectedResultException;
-import com.oracle.truffle.api.object.DynamicObject;
-import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import net.earthcomputer.clientcommands.MathUtil;
 import net.earthcomputer.clientcommands.features.PathfindingHints;
 import net.earthcomputer.clientcommands.features.PlayerPathfinder;
@@ -39,6 +36,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
+import org.graalvm.polyglot.Value;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,49 +153,38 @@ public class ScriptPlayer extends ScriptLivingEntity {
         return pathTo(x, y, z, null);
     }
 
-    public boolean pathTo(double x, double y, double z, DynamicObject hints) {
+    public boolean pathTo(double x, double y, double z, Value hints) {
         BlockPos pos = new BlockPos(x, y, z);
         return pathTo0(() -> pos, hints, false);
     }
 
-    public boolean pathTo(Object thing) {
+    public boolean pathTo(Value thing) {
         return pathTo(thing, null);
     }
 
-    public boolean pathTo(Object thing, DynamicObject hints) {
-        if (thing instanceof ScriptEntity) {
-            Entity entity = ((ScriptEntity) thing).getEntity();
+    public boolean pathTo(Value thing, Value hints) {
+        ScriptEntity scriptEntity = ScriptUtil.unwrap(thing, ScriptEntity.class);
+        if (scriptEntity != null) {
+            Entity entity = scriptEntity.getEntity();
             return pathTo0(entity::getBlockPos, hints, true);
         } else {
             ScriptFunction func = ScriptUtil.asFunction(thing);
             return pathTo0(() -> {
-                DynamicObject posObj = ScriptUtil.asObject(func.call());
-                DynamicObjectLibrary dyn = DynamicObjectLibrary.getFactory().create(posObj);
-                double x, y, z;
-                try {
-                    x = dyn.getDoubleOrDefault(posObj, "x", 0);
-                    y = dyn.getDoubleOrDefault(posObj, "y", 0);
-                    z = dyn.getDoubleOrDefault(posObj, "z", 0);
-                } catch (UnexpectedResultException e) {
-                    throw new RuntimeException(e);
-                }
+                Value posObj = func.call();
+                double x = posObj.getMember("x").asDouble();
+                double y = posObj.getMember("y").asDouble();
+                double z = posObj.getMember("z").asDouble();
                 return new BlockPos(x, y, z);
             }, hints, true);
         }
     }
 
-    private boolean pathTo0(Supplier<BlockPos> target, DynamicObject hints, boolean movingTarget) {
-        DynamicObjectLibrary hintsLib = hints != null ? DynamicObjectLibrary.getFactory().create(hints) : null;
-        ScriptFunction nodeTypeFunction = hints != null ? ScriptUtil.asFunction(hintsLib.getOrDefault(hints, "nodeTypeFunction", null)) : null;
-        ScriptFunction penaltyFunction = hints != null ? ScriptUtil.asFunction(hintsLib.getOrDefault(hints, "penaltyFunction", null)) : null;
-        Float followRange = hints != null ? ScriptUtil.asNumber(hintsLib.getOrDefault(hints, "followRange", null)).floatValue() : null;
-        int reachDistance;
-        try {
-            reachDistance = hints != null ? hintsLib.getIntOrDefault(hints, "reachDistance", 0) : 0;
-        } catch (UnexpectedResultException e) {
-            throw new RuntimeException(e);
-        }
-        Float maxPathLength = hints != null ? ScriptUtil.asNumber(hintsLib.getOrDefault(hints, "maxPathLength", null)).floatValue() : null;
+    private boolean pathTo0(Supplier<BlockPos> target, Value hints, boolean movingTarget) {
+        ScriptFunction nodeTypeFunction = hints != null && hints.hasMember("nodeTypeFunction") ? ScriptUtil.asFunction(hints.getMember("nodeTypeFunction")) : null;
+        ScriptFunction penaltyFunction = hints != null && hints.hasMember("penaltyFunction") ? ScriptUtil.asFunction(hints.getMember("penaltyFunction")) : null;
+        Float followRange = hints != null && hints.hasMember("followRange") ? hints.getMember("followRange").asFloat() : null;
+        int reachDistance = hints != null && hints.hasMember("reachDistance") ? hints.getMember("reachDistance").asInt() : 0;
+        Float maxPathLength = hints != null && hints.hasMember("maxPathLength") ? hints.getMember("maxPathLength").asFloat() : null;
 
         BlockPos[] targetPos = {target.get()};
 
@@ -207,8 +194,8 @@ public class ScriptPlayer extends ScriptLivingEntity {
                 if (nodeTypeFunction == null)
                     return null;
 
-                Object typeObj = nodeTypeFunction.call(pos.getX(), pos.getY(), pos.getZ());
-                if (typeObj == null)
+                Value typeObj = nodeTypeFunction.call(pos.getX(), pos.getY(), pos.getZ());
+                if (typeObj == null || typeObj.isNull())
                     return null;
 
                 String typeName = ScriptUtil.asString(typeObj);
@@ -225,12 +212,12 @@ public class ScriptPlayer extends ScriptLivingEntity {
                     return type.getDefaultPenalty();
 
                 String typeName = type.name().toLowerCase(Locale.ROOT);
-                Object penaltyObj = penaltyFunction.call(typeName);
+                Value penaltyObj = penaltyFunction.call(typeName);
 
-                if (penaltyObj == null)
+                if (penaltyObj == null || penaltyObj.isNull())
                     return type.getDefaultPenalty();
 
-                return ScriptUtil.asNumber(penaltyObj).floatValue();
+                return penaltyObj.asFloat();
             }
 
             @Override
@@ -347,15 +334,15 @@ public class ScriptPlayer extends ScriptLivingEntity {
             return new ScriptInventory(getEntity().currentScreenHandler);
     }
 
-    public boolean openContainer(int x, int y, int z, Object containerType) {
+    public boolean openContainer(int x, int y, int z, Value containerType) {
         return openContainer0(() -> rightClick(x, y, z), containerType);
     }
 
-    public boolean openContainer(ScriptEntity entity, Object containerType) {
+    public boolean openContainer(ScriptEntity entity, Value containerType) {
         return openContainer0(() -> rightClick(entity), containerType);
     }
 
-    private boolean openContainer0(BooleanSupplier rightClickFunction, Object containerType) {
+    private boolean openContainer0(BooleanSupplier rightClickFunction, Value containerType) {
         Predicate<String> containerTypePredicate;
         if (ScriptUtil.isFunction(containerType)) {
             ScriptFunction containerTypeFunc = ScriptUtil.asFunction(containerType);
@@ -386,11 +373,10 @@ public class ScriptPlayer extends ScriptLivingEntity {
         }
     }
 
-    public int craft(Object result, int count, String[] pattern, DynamicObject ingredients) {
+    public int craft(Value result, int count, String[] pattern, Value ingredients) {
         // Convert js input to something we can handle in Java
 
         Predicate<ItemStack> resultPredicate = ScriptUtil.asItemStackPredicate(result);
-        DynamicObjectLibrary ingredientsLib = DynamicObjectLibrary.getFactory().create(ingredients);
 
         int patternWidth = -1;
         Map<Character, Predicate<ItemStack>> ingredientPredicates = new HashMap<>();
@@ -404,9 +390,9 @@ public class ScriptPlayer extends ScriptLivingEntity {
                 if (c != ' ') {
                     ingredientPredicates.computeIfAbsent(c, k -> {
                         String s = String.valueOf(k);
-                        if (!ingredientsLib.containsKey(ingredients, s))
+                        if (!ingredients.hasMember(s))
                             throw new IllegalArgumentException("Character '" + k + "' in pattern not found in ingredients");
-                        return ScriptUtil.asItemStackPredicate(ingredientsLib.getOrDefault(ingredients, s, null));
+                        return ScriptUtil.asItemStackPredicate(ingredients.getMember(s));
                     });
                 }
             }
@@ -581,7 +567,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
                 && (slot.id < container.getCraftingResultSlotIndex() || slot.id >= container.getCraftingResultSlotIndex() + container.getCraftingSlotCount());
     }
 
-    public boolean pick(Object itemStack) {
+    public boolean pick(Value itemStack) {
         Predicate<ItemStack> predicate = ScriptUtil.asItemStackPredicate(itemStack);
 
         PlayerInventory inv = getEntity().inventory;

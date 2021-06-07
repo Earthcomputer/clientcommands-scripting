@@ -1,6 +1,7 @@
 package net.earthcomputer.clientcommands.script;
 
 import net.minecraft.client.MinecraftClient;
+import org.graalvm.polyglot.Value;
 import xyz.wagyourtail.jsmacros.core.language.impl.JavascriptLanguageDefinition;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 import xyz.wagyourtail.jsmacros.core.library.Library;
@@ -58,7 +59,7 @@ public class ClientCommandsLibrary extends BaseLibrary {
     }
 
     public static class ItemStackLibrary extends BaseLibrary {
-        public Object of(Object obj) {
+        public Object of(Value obj) {
             return ScriptItemStack.of(obj);
         }
     }

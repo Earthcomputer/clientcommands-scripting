@@ -1,6 +1,8 @@
 package net.earthcomputer.clientcommands.script;
 
+import org.graalvm.polyglot.Value;
+
 @FunctionalInterface
 public interface ScriptFunction {
-    Object call(Object... args);
+    Value call(Object... args);
 }

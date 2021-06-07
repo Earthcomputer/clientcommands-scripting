@@ -1,13 +1,5 @@
 package net.earthcomputer.clientcommands.script;
 
-import com.oracle.truffle.api.interop.ArityException;
-import com.oracle.truffle.api.interop.InteropLibrary;
-import com.oracle.truffle.api.interop.InvalidArrayIndexException;
-import com.oracle.truffle.api.interop.TruffleObject;
-import com.oracle.truffle.api.interop.UnsupportedMessageException;
-import com.oracle.truffle.api.interop.UnsupportedTypeException;
-import com.oracle.truffle.api.object.DynamicObject;
-import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.AbstractListTag;
@@ -29,11 +21,10 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.registry.Registry;
+import org.graalvm.polyglot.Value;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -68,117 +59,61 @@ public class ScriptUtil {
         return list;
     }
 
-    public static Tag toNbt(Object obj) {
-        obj = normalizeNbtType(obj);
-        if (obj instanceof Map) {
-            //noinspection unchecked
-            return mapToNbtCompound((Map<Object, Object>) obj);
-        } else if (obj instanceof List) {
-            //noinspection unchecked
-            return listToNbtList((List<Object>) obj);
-        } else if (obj instanceof String) {
-            return StringTag.of((String) obj);
-        } else if (obj instanceof Byte) {
-            return ByteTag.of((Byte) obj);
-        } else if (obj instanceof Short) {
-            return ShortTag.of((Short) obj);
-        } else if (obj instanceof Integer) {
-            return IntTag.of((Integer) obj);
-        } else if (obj instanceof Long) {
-            return LongTag.of((Long) obj);
-        } else if (obj instanceof Float) {
-            return FloatTag.of((Float) obj);
-        } else if (obj instanceof Double) {
-            return DoubleTag.of((Double) obj);
+    public static Tag toNbt(Value obj) {
+        if (obj.isBoolean()) {
+            return ByteTag.of(obj.asBoolean());
+        } else if (obj.isNumber()) {
+            if (obj.fitsInByte()) {
+                return ByteTag.of(obj.asByte());
+            } else if (obj.fitsInShort()) {
+                return ShortTag.of(obj.asShort());
+            } else if (obj.fitsInInt()) {
+                return IntTag.of(obj.asInt());
+            } else if (obj.fitsInFloat()) {
+                return FloatTag.of(obj.asFloat());
+            } else if (obj.fitsInLong()) {
+                return LongTag.of(obj.asLong());
+            } else if (obj.fitsInDouble()) {
+                return DoubleTag.of(obj.asDouble());
+            } else {
+                return DoubleTag.of(Double.NaN);
+            }
+        } else if (obj.isString()) {
+            return StringTag.of(obj.asString());
+        } else if (obj.hasArrayElements()) {
+            return arrayToNbtList(obj);
         } else {
-            throw new IllegalStateException("Don't know how to convert object of type " + obj.getClass() + " to NBT");
+            return objectToNbtCompound(obj);
         }
     }
 
-    private static Object normalizeNbtType(Object input) {
-        if (input instanceof Map || input instanceof List || input instanceof Number || input instanceof String)
-            return input;
-        if (input.getClass().isArray()) {
-            int len = Array.getLength(input);
-            List<Object> ret = new ArrayList<>(len);
-            for (int i = 0; i < len; i++)
-                ret.add(Array.get(input, i));
-            return ret;
-        }
-        if (input instanceof TruffleObject) {
-            InteropLibrary interop = InteropLibrary.getFactory().create(input);
-            try {
-                if (interop.isNumber(input)) {
-                    return asNumber(input);
-                }
-                if (interop.isString(input)) {
-                    return interop.asString(input);
-                }
-                if (interop.hasArrayElements(input)) {
-                    int len = (int) interop.getArraySize(input);
-                    List<Object> ret = new ArrayList<>(len);
-                    for (int i = 0; i < len; i++)
-                        ret.add(interop.readArrayElement(input, i));
-                    return ret;
-                }
-            } catch (UnsupportedMessageException | InvalidArrayIndexException e) {
-                throw new RuntimeException(e);
-            }
-            if (input instanceof DynamicObject) {
-                DynamicObject dynObj = (DynamicObject) input;
-                DynamicObjectLibrary dyn = DynamicObjectLibrary.getFactory().create(dynObj);
-                Map<String, Object> ret = new LinkedHashMap<>();
-                for (Object keyObj : dyn.getKeyArray(dynObj)) {
-                    String key = asString(keyObj);
-                    ret.put(key, dyn.getOrDefault(dynObj, keyObj, null));
-                }
-                return ret;
-            }
-
-            return interop.toDisplayString(input);
-        }
-
-        return asString(input);
-    }
-
-    private static CompoundTag mapToNbtCompound(Map<Object, Object> map) {
+    private static CompoundTag objectToNbtCompound(Value obj) {
         CompoundTag compound = new CompoundTag();
-        for (Map.Entry<Object, Object> entry : map.entrySet()) {
-            compound.put(asString(entry.getKey()), toNbt(entry.getValue()));
+        for (String key : obj.getMemberKeys()) {
+            compound.put(key, toNbt(obj.getMember(key)));
         }
         return compound;
     }
 
-    private static byte getListType(List<Object> list) {
+    private static byte getArrayType(Value array) {
         byte type = 0;
-        for (Object element : list) {
-            element = normalizeNbtType(element);
-            if (element instanceof Map) {
-                return 10; // compound
-            } else if (element instanceof List) {
-                @SuppressWarnings("unchecked") byte sublistType = getListType((List<Object>)element);
+        int len = (int) array.getArraySize();
+        for (int i = 0; i < len; i++) {
+            Value element = array.getArrayElement(i);
+            if (element.isBoolean()) {
+                return 1; // byte
+            } else if (element.isNumber()) {
                 byte newType;
-                if (sublistType == 1) // byte
-                    newType = 7; // byte array
-                else if (sublistType == 2 || sublistType == 3)
-                    newType = 11; // int array
-                else if (sublistType == 4)
-                    newType = 12; // long array
-                else
-                    return 9; // list
-                type = (byte) Math.max(type, newType);
-            } else if (element instanceof Number) {
-                byte newType;
-                if (element instanceof Byte)
+                if (element.fitsInByte())
                     newType = 1; // byte
-                else if (element instanceof Short)
+                else if (element.fitsInShort())
                     newType = 2; // short
-                else if (element instanceof Integer)
+                else if (element.fitsInInt())
                     newType = 3; // int
-                else if (element instanceof Long)
-                    newType = 4; // long
-                else if (element instanceof Float)
+                else if (element.fitsInFloat())
                     newType = 5; // float
+                else if (element.fitsInLong())
+                    newType = 4; // long
                 else
                     newType = 6; // double
                 if (newType == 5) { // float
@@ -190,28 +125,42 @@ public class ScriptUtil {
                     type = 6; // double
                 else
                     type = (byte) Math.max(type, newType);
-            } else if (element instanceof String) {
+            } else if (element.isString()) {
                 return 8; // string
+            } else if (element.hasArrayElements()) {
+                byte sublistType = getArrayType(element);
+                byte newType;
+                if (sublistType == 1) // byte
+                    newType = 7; // byte array
+                else if (sublistType == 2 || sublistType == 3)
+                    newType = 11; // int array
+                else if (sublistType == 4)
+                    newType = 12; // long array
+                else
+                    return 9; // list
+                type = (byte) Math.max(type, newType);
+            } else {
+                return 10; // compound
             }
         }
         return type;
     }
 
-    private static AbstractListTag<?> listToNbtList(List<Object> list) {
-        byte type = getListType(list);
+    private static AbstractListTag<?> arrayToNbtList(Value array) {
+        byte type = getArrayType(array);
+        int len = (int) array.getArraySize();
         AbstractListTag<?> listTag;
         if (type == 1) // byte
-            listTag = new ByteArrayTag(new byte[list.size()]);
+            listTag = new ByteArrayTag(new byte[len]);
         else if (type == 2 || type == 3) // short, int
-            listTag = new IntArrayTag(new int[list.size()]);
+            listTag = new IntArrayTag(new int[len]);
         else if (type == 4) // long
-            listTag = new LongArrayTag(new long[list.size()]);
+            listTag = new LongArrayTag(new long[len]);
         else
             listTag = new ListTag();
 
-        int index = 0;
-        for (Object element : list) {
-            element = normalizeNbtType(element);
+        for (int index = 0; index < len; index++) {
+            Value element = array.getArrayElement(index);
             Tag elementTag = toNbt(element);
             if (type <= 4) { // integral number
                 if (!(elementTag instanceof AbstractNumberTag))
@@ -280,7 +229,6 @@ public class ScriptUtil {
             } else {
                 ((ListTag) listTag).add(elementTag);
             }
-            index++;
         }
         return listTag;
     }
@@ -294,88 +242,28 @@ public class ScriptUtil {
             return id.toString();
     }
 
-    public static boolean asBoolean(Object obj) {
-        if (obj == null) return false;
-        if (obj instanceof Boolean) return (Boolean) obj;
-        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
-        if (interop.isNull(obj)) return false;
-        try {
-            if (interop.isBoolean(obj)) return interop.asBoolean(obj);
-        } catch (UnsupportedMessageException e) {
-            throw new RuntimeException(e);
+    public static boolean asBoolean(Value obj) {
+        if (obj.isNull()) return false;
+        if (obj.isBoolean()) return obj.asBoolean();
+        if (obj.isNumber() && obj.fitsInDouble()) return obj.asDouble() != 0;
+        throw new IllegalArgumentException("Cannot interpret " + obj + " as a boolean");
+    }
+
+    public static String asString(Value obj) {
+        if (obj == null || obj.isNull()) return null;
+        if (obj.isString()) return obj.asString();
+        return String.valueOf(obj);
+    }
+
+    public static boolean isFunction(Value obj) {
+        return obj.canExecute();
+    }
+
+    public static ScriptFunction asFunction(Value obj) {
+        if (!obj.canExecute()) {
+            throw new IllegalArgumentException("Cannot interpret " + obj + " as a function");
         }
-        return false;
-    }
-
-    public static Number asNumber(Object obj) {
-        if (obj == null) return 0;
-        if (obj instanceof Number) return (Number) obj;
-        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
-        if (interop.isNull(obj)) return 0;
-        try {
-            if (interop.isNumber(obj)) {
-                if (interop.fitsInByte(obj)) {
-                    return interop.asByte(obj);
-                }
-                if (interop.fitsInShort(obj)) {
-                    return interop.asShort(obj);
-                }
-                if (interop.fitsInInt(obj)) {
-                    return interop.asInt(obj);
-                }
-                if (interop.fitsInFloat(obj)) {
-                    return interop.asFloat(obj);
-                }
-                if (interop.fitsInLong(obj)) {
-                    return interop.asLong(obj);
-                }
-                if (interop.fitsInDouble(obj)) {
-                    return interop.asDouble(obj);
-                }
-            }
-        } catch (UnsupportedMessageException e) {
-            throw new RuntimeException(e);
-        }
-        return 0;
-    }
-
-    public static String asString(Object obj) {
-        if (obj == null) return null;
-        if (obj instanceof String) return (String) obj;
-        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
-        if (interop.isNull(obj)) return null;
-        try {
-            if (interop.isString(obj)) return interop.asString(obj);
-            return interop.asString(interop.toDisplayString(obj));
-        } catch (UnsupportedMessageException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static boolean isFunction(Object obj) {
-        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
-        return interop.isExecutable(obj);
-    }
-
-    public static ScriptFunction asFunction(Object obj) {
-        if (obj == null) return null;
-        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
-        if (interop.isExecutable(obj)) {
-            return args -> {
-                try {
-                    return interop.execute(obj, args);
-                } catch (UnsupportedMessageException | UnsupportedTypeException | ArityException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-        }
-        throw new IllegalArgumentException("Cannot interpret " + obj + " as a function");
-    }
-
-    public static DynamicObject asObject(Object obj) {
-        if (obj == null) return null;
-        if (obj instanceof DynamicObject) return (DynamicObject) obj;
-        throw new IllegalArgumentException("Cannot interpret " + obj + " as an object");
+        return obj::execute;
     }
 
     static Direction getDirectionFromString(String side) {
@@ -392,9 +280,8 @@ public class ScriptUtil {
         return null;
     }
 
-    static Predicate<ItemStack> asItemStackPredicate(Object obj) {
-        InteropLibrary interop = InteropLibrary.getFactory().create(obj);
-        if (interop.isString(obj)) {
+    static Predicate<ItemStack> asItemStackPredicate(Value obj) {
+        if (obj.isString()) {
             Item item = Registry.ITEM.get(new Identifier(asString(obj)));
             return stack -> stack.getItem() == item;
         } else if (isFunction(obj)) {
@@ -409,5 +296,15 @@ public class ScriptUtil {
                 throw new IllegalArgumentException(obj.toString());
             return stack -> NbtHelper.matches(nbt, stack.toTag(new CompoundTag()), true);
         }
+    }
+
+    static <T> T unwrap(Value obj, Class<T> type) {
+        if (obj.isHostObject() && obj.asHostObject() instanceof BeanWrapper) {
+            obj = ((BeanWrapper) obj.asHostObject()).getDelegate();
+        }
+        if (obj.isHostObject() && type.isInstance(obj)) {
+            return type.cast(obj.asHostObject());
+        }
+        return null;
     }
 }

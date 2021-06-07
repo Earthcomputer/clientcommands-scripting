@@ -1,9 +1,6 @@
 package net.earthcomputer.clientcommands.script;
 
 import com.google.common.collect.Lists;
-import com.oracle.truffle.api.nodes.UnexpectedResultException;
-import com.oracle.truffle.api.object.DynamicObject;
-import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import net.earthcomputer.clientcommands.interfaces.ISlot;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
@@ -19,6 +16,7 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.registry.Registry;
+import org.graalvm.polyglot.Value;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,29 +76,24 @@ public class ScriptInventory {
         click(slot, null);
     }
 
-    public void click(Integer slot, DynamicObject options) {
-        DynamicObjectLibrary optionsLib = options != null ? DynamicObjectLibrary.getFactory().create(options) : null;
-        String typeStr = options != null ? ScriptUtil.asString(optionsLib.getOrDefault(options, "type", null)) : null;
+    public void click(Integer slot, Value options) {
+        String typeStr = options != null && options.hasMember("type") ? ScriptUtil.asString(options.getMember("type")) : null;
         SlotActionType type = typeStr == null ? SlotActionType.PICKUP :
                 Arrays.stream(SlotActionType.values()).filter(it -> it.name().equalsIgnoreCase(typeStr)).findAny().orElse(SlotActionType.PICKUP);
 
         int mouseButton;
-        try {
-            if (type == SlotActionType.SWAP) {
-                if (!optionsLib.containsKey(options, "hotbarSlot"))
-                    throw new IllegalArgumentException("When the click type is swap, the options must also contain the hotbar slot to swap with");
-                mouseButton = MathHelper.clamp(optionsLib.getIntOrDefault(options, "hotbarSlot", 0), 0, 8);
-            } else if (type == SlotActionType.QUICK_CRAFT) {
-                if (!optionsLib.containsKey(options, "quickCraftStage"))
-                    throw new IllegalArgumentException("When the click type is quick_craft, the options must also contain the quick craft stage");
-                int quickCraftStage = optionsLib.getIntOrDefault(options, "quickCraftStage", 0);
-                int button = ScriptUtil.asBoolean(optionsLib.getOrDefault(options, "rightClick", false)) ? 1 : 0;
-                mouseButton = ScreenHandler.packQuickCraftData(quickCraftStage, button);
-            } else {
-                mouseButton = options != null ? ScriptUtil.asBoolean(optionsLib.getOrDefault(options, "rightClick", false)) ? 1 : 0 : 0;
-            }
-        } catch (UnexpectedResultException e) {
-            throw new RuntimeException(e);
+        if (type == SlotActionType.SWAP) {
+            if (!options.hasMember("hotbarSlot"))
+                throw new IllegalArgumentException("When the click type is swap, the options must also contain the hotbar slot to swap with");
+            mouseButton = MathHelper.clamp(options.getMember("hotbarSlot").asInt(), 0, 8);
+        } else if (type == SlotActionType.QUICK_CRAFT) {
+            if (!options.hasMember("quickCraftStage"))
+                throw new IllegalArgumentException("When the click type is quick_craft, the options must also contain the quick craft stage");
+            int quickCraftStage = options.getMember("quickCraftStage").asInt();
+            int button = options.hasMember("rightClick") ? ScriptUtil.asBoolean(options.getMember("rightClick")) ? 1 : 0 : 0;
+            mouseButton = ScreenHandler.packQuickCraftData(quickCraftStage, button);
+        } else {
+            mouseButton = options != null && options.hasMember("rightClick") ? ScriptUtil.asBoolean(options.getMember("rightClick")) ? 1 : 0 : 0;
         }
 
         int slotId;
@@ -117,11 +110,11 @@ public class ScriptInventory {
         MinecraftClient.getInstance().interactionManager.clickSlot(player.currentScreenHandler.syncId, slotId, mouseButton, type, player);
     }
 
-    public Integer findSlot(Object item) {
+    public Integer findSlot(Value item) {
         return findSlot(item, false);
     }
 
-    public Integer findSlot(Object item, boolean reverse) {
+    public Integer findSlot(Value item, boolean reverse) {
         Predicate<ItemStack> itemPredicate = ScriptUtil.asItemStackPredicate(item);
 
         List<Slot> slots = getSlots();
@@ -137,11 +130,11 @@ public class ScriptInventory {
         return null;
     }
 
-    public List<Integer> findSlots(Object item, int count) {
+    public List<Integer> findSlots(Value item, int count) {
         return findSlots(item, count, false);
     }
 
-    public List<Integer> findSlots(Object item, int count, boolean reverse) {
+    public List<Integer> findSlots(Value item, int count, boolean reverse) {
         Predicate<ItemStack> itemPredicate = ScriptUtil.asItemStackPredicate(item);
 
         List<Slot> slots = getSlots();
@@ -162,11 +155,11 @@ public class ScriptInventory {
         return slotIds;
     }
 
-    public int moveItems(Object item, int count) {
+    public int moveItems(Value item, int count) {
         return moveItems(item, count, false);
     }
 
-    public int moveItems(Object item, int count, boolean reverse) {
+    public int moveItems(Value item, int count, boolean reverse) {
         Predicate<ItemStack> itemPredicate = ScriptUtil.asItemStackPredicate(item);
 
         ClientPlayerEntity player = MinecraftClient.getInstance().player;

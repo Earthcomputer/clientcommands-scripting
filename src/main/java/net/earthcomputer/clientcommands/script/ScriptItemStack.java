@@ -9,6 +9,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
+import org.graalvm.polyglot.Value;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,7 @@ public class ScriptItemStack {
         this.stack = stack;
     }
 
-    static ScriptItemStack ofUnchecked(Object obj) {
+    static ScriptItemStack ofUnchecked(Value obj) {
         Tag itemNbt = ScriptUtil.toNbt(obj);
         if (!(itemNbt instanceof CompoundTag)) {
             Identifier itemId = new Identifier(ScriptUtil.asString(obj));
@@ -33,7 +34,7 @@ public class ScriptItemStack {
         return new ScriptItemStack(stack);
     }
 
-    public static Object of(Object obj) {
+    public static Object of(Value obj) {
         return BeanWrapper.wrap(ofUnchecked(obj));
     }
 

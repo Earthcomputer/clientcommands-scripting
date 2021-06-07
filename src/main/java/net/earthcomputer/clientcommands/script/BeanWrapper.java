@@ -31,6 +31,10 @@ public class BeanWrapper implements ProxyObject {
         return new BeanWrapper(javaBean);
     }
 
+    Value getDelegate() {
+        return Context.getCurrent().asValue(this.delegate);
+    }
+
     @Override
     public Object getMember(String key) {
         Value delegate = Context.getCurrent().asValue(this.delegate);
