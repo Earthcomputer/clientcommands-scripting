@@ -1,5 +1,6 @@
 package net.earthcomputer.clientcommands.script.mixin;
 
+import net.earthcomputer.clientcommands.script.ClientCommandsScripting;
 import net.earthcomputer.clientcommands.script.ScriptManager;
 import net.minecraft.client.Mouse;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,7 +16,7 @@ public class MixinMouse {
 
     @Inject(method = "updateMouse", at = @At("HEAD"))
     private void onUpdateMouse(CallbackInfo ci) {
-        if (ScriptManager.blockingInput()) {
+        if (ClientCommandsScripting.isJsMacrosPresent && ScriptManager.blockingInput()) {
             cursorDeltaX = 0;
             cursorDeltaY = 0;
         }

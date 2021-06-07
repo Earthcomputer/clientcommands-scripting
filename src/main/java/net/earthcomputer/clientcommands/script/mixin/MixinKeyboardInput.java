@@ -1,5 +1,6 @@
 package net.earthcomputer.clientcommands.script.mixin;
 
+import net.earthcomputer.clientcommands.script.ClientCommandsScripting;
 import net.earthcomputer.clientcommands.script.ScriptManager;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.input.KeyboardInput;
@@ -12,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class MixinKeyboardInput {
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void preTick(boolean inSneakingPose, CallbackInfo ci) {
-        if (ScriptManager.blockingInput()) {
+        if (ClientCommandsScripting.isJsMacrosPresent && ScriptManager.blockingInput()) {
             Input _this = (Input) (Object) this;
             _this.pressingForward = _this.pressingBack = _this.pressingLeft = _this.pressingRight = _this.jumping = _this.sneaking = false;
             ScriptManager.copyScriptInputToPlayer(inSneakingPose);
@@ -22,6 +23,8 @@ public class MixinKeyboardInput {
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void postTick(boolean inSneakingPose, CallbackInfo ci) {
-        ScriptManager.copyScriptInputToPlayer(inSneakingPose);
+        if (ClientCommandsScripting.isJsMacrosPresent) {
+            ScriptManager.copyScriptInputToPlayer(inSneakingPose);
+        }
     }
 }

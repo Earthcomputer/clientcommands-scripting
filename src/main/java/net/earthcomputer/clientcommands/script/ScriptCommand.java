@@ -32,22 +32,30 @@ public class ScriptCommand {
                 .executes(ctx -> reloadScripts()))
             .then(literal("run")
                 .then(argument("script", string())
-                    .suggests((ctx, builder) -> CommandSource.suggestMatching(ScriptManager.getLegacyScriptNames(), builder))
+                    .suggests((ctx, builder) -> {
+                        if (!ClientCommandsScripting.isJsMacrosPresent) {
+                            return builder.buildFuture();
+                        }
+                        return CommandSource.suggestMatching(ScriptManager.getLegacyScriptNames(), builder);
+                    })
                     .executes(ctx -> runLegacyScript(getString(ctx, "script")))))
             .then(literal("exec")
                 .then(argument("script", string())
-                    .suggests(ScriptManager.getScriptSuggestions())
+                    .suggests(ClientCommandsScripting.isJsMacrosPresent ? ScriptManager.getScriptSuggestions() : (ctx, builder) -> builder.buildFuture())
                     .executes(ctx -> execScript(getString(ctx, "script"))))));
     }
 
-    private static int reloadScripts() {
+    private static int reloadScripts() throws CommandSyntaxException {
+        if (!ClientCommandsScripting.isJsMacrosPresent) {
+            throw NO_JSMACROS_EXCEPTION.create();
+        }
         ScriptManager.reloadLegacyScripts();
         sendFeedback("commands.cscript.reload.success");
         return ScriptManager.getLegacyScriptNames().size();
     }
 
     private static int runLegacyScript(String name) throws CommandSyntaxException {
-        if (!ScriptManager.isJsMacrosPresent) {
+        if (!ClientCommandsScripting.isJsMacrosPresent) {
             throw NO_JSMACROS_EXCEPTION.create();
         }
         if (!warnedDeprecated) {
@@ -60,7 +68,7 @@ public class ScriptCommand {
     }
 
     private static int execScript(String name) throws CommandSyntaxException {
-        if (!ScriptManager.isJsMacrosPresent) {
+        if (!ClientCommandsScripting.isJsMacrosPresent) {
             throw NO_JSMACROS_EXCEPTION.create();
         }
         ScriptManager.executeScript(name);

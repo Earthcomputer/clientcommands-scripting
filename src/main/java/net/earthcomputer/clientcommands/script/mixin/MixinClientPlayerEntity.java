@@ -1,5 +1,6 @@
 package net.earthcomputer.clientcommands.script.mixin;
 
+import net.earthcomputer.clientcommands.script.ClientCommandsScripting;
 import net.earthcomputer.clientcommands.script.ScriptManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -15,13 +16,17 @@ public class MixinClientPlayerEntity {
 
     @Inject(method = "tickMovement", at = @At("HEAD"))
     public void onStartTickMovement(CallbackInfo ci) {
-        wasSprintPressed = MinecraftClient.getInstance().options.keySprint.isPressed();
-        boolean shouldBeSprinting = (wasSprintPressed && !ScriptManager.blockingInput()) || ScriptManager.isSprinting();
-        ((KeyBindingAccessor) MinecraftClient.getInstance().options.keySprint).setPressed(shouldBeSprinting);
+        if (ClientCommandsScripting.isJsMacrosPresent) {
+            wasSprintPressed = MinecraftClient.getInstance().options.keySprint.isPressed();
+            boolean shouldBeSprinting = (wasSprintPressed && !ScriptManager.blockingInput()) || ScriptManager.isSprinting();
+            ((KeyBindingAccessor) MinecraftClient.getInstance().options.keySprint).setPressed(shouldBeSprinting);
+        }
     }
 
     @Inject(method = "tickMovement", at = @At("RETURN"))
     public void onEndTickMovement(CallbackInfo ci) {
-        ((KeyBindingAccessor) MinecraftClient.getInstance().options.keySprint).setPressed(wasSprintPressed);
+        if (ClientCommandsScripting.isJsMacrosPresent) {
+            ((KeyBindingAccessor) MinecraftClient.getInstance().options.keySprint).setPressed(wasSprintPressed);
+        }
     }
 }

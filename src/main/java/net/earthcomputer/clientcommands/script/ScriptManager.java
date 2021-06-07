@@ -48,7 +48,6 @@ import java.util.function.Consumer;
 public class ScriptManager {
     private static final Logger LOGGER = LogManager.getLogger("ScriptManager");
     private static final DynamicCommandExceptionType SCRIPT_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(arg -> new TranslatableText("commands.cscript.notFound", arg));
-    public static boolean isJsMacrosPresent = FabricLoader.getInstance().isModLoaded("jsmacros");
 
     private static ClientCommandsLanguage language;
 
@@ -61,11 +60,6 @@ public class ScriptManager {
     private static final AtomicInteger nextThreadId = new AtomicInteger();
 
     public static void inject() {
-        if (!isJsMacrosPresent) {
-            LOGGER.info("Clientcommands scripts are disabled because jsmacros is not present");
-            return;
-        }
-
         LOGGER.info("Injecting clientcommands into jsmacros");
         language = new ClientCommandsLanguage(".clientcommands", JsMacros.core);
         JsMacros.core.addLanguage(language);
@@ -73,10 +67,6 @@ public class ScriptManager {
     }
 
     public static void reloadLegacyScripts() {
-        if (!isJsMacrosPresent) {
-            return;
-        }
-
         LOGGER.info("Reloading legacy clientcommands scripts");
 
         legacyScriptsDir = ClientCommandsScripting.configDir.resolve("scripts");
@@ -103,9 +93,6 @@ public class ScriptManager {
     }
 
     public static SuggestionProvider<ServerCommandSource> getScriptSuggestions() {
-        if (!isJsMacrosPresent) {
-            return (ctx, builder) -> builder.buildFuture();
-        }
         return (ctx, builder) -> CompletableFuture.supplyAsync(() -> {
             Path macroFolder = JsMacros.core.config.macroFolder.toPath();
             if (!Files.exists(macroFolder)) {
@@ -247,10 +234,6 @@ public class ScriptManager {
     }
 
     public static void tick() {
-        if (!isJsMacrosPresent) {
-            return;
-        }
-
         for (ThreadInstance thread : new ArrayList<>(runningThreads)) {
             if (thread.paused || !thread.running) continue;
 
