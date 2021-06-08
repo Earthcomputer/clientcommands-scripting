@@ -2,22 +2,22 @@ package net.earthcomputer.clientcommands.script;
 
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.AbstractListTag;
-import net.minecraft.nbt.AbstractNumberTag;
-import net.minecraft.nbt.ByteArrayTag;
-import net.minecraft.nbt.ByteTag;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.DoubleTag;
-import net.minecraft.nbt.FloatTag;
-import net.minecraft.nbt.IntArrayTag;
-import net.minecraft.nbt.IntTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.LongArrayTag;
-import net.minecraft.nbt.LongTag;
+import net.minecraft.nbt.AbstractNbtList;
+import net.minecraft.nbt.AbstractNbtNumber;
+import net.minecraft.nbt.NbtByte;
+import net.minecraft.nbt.NbtByteArray;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtDouble;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtFloat;
 import net.minecraft.nbt.NbtHelper;
-import net.minecraft.nbt.ShortTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.NbtInt;
+import net.minecraft.nbt.NbtIntArray;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtLong;
+import net.minecraft.nbt.NbtLongArray;
+import net.minecraft.nbt.NbtShort;
+import net.minecraft.nbt.NbtString;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.registry.Registry;
@@ -31,55 +31,55 @@ import java.util.function.Predicate;
 
 public class ScriptUtil {
 
-    public static Object fromNbt(Tag tag) {
-        if (tag instanceof CompoundTag) {
-            return fromNbtCompound((CompoundTag) tag);
-        } else if (tag instanceof AbstractListTag) {
-            return fromNbtList((AbstractListTag<?>) tag);
-        } else if (tag instanceof StringTag) {
+    public static Object fromNbt(NbtElement tag) {
+        if (tag instanceof NbtCompound) {
+            return fromNbtCompound((NbtCompound) tag);
+        } else if (tag instanceof AbstractNbtList) {
+            return fromNbtList((AbstractNbtList<?>) tag);
+        } else if (tag instanceof NbtString) {
             return tag.asString();
-        } else if (tag instanceof LongTag) {
-            return ((LongTag) tag).getLong();
-        } else if (tag instanceof AbstractNumberTag) {
-            return ((AbstractNumberTag) tag).getDouble();
+        } else if (tag instanceof NbtLong) {
+            return ((NbtLong) tag).longValue();
+        } else if (tag instanceof AbstractNbtNumber) {
+            return ((AbstractNbtNumber) tag).doubleValue();
         } else {
             throw new IllegalStateException("Unknown tag type " + tag.getType());
         }
     }
 
-    public static Object fromNbtCompound(CompoundTag tag) {
+    public static Object fromNbtCompound(NbtCompound tag) {
         Map<String, Object> map = new HashMap<>(tag.getSize());
         tag.getKeys().forEach(key -> map.put(key, fromNbt(tag.get(key))));
         return map;
     }
 
-    public static Object fromNbtList(AbstractListTag<?> tag) {
+    public static Object fromNbtList(AbstractNbtList<?> tag) {
         List<Object> list = new ArrayList<>(tag.size());
         tag.forEach(val -> list.add(fromNbt(val)));
         return list;
     }
 
-    public static Tag toNbt(Value obj) {
+    public static NbtElement toNbt(Value obj) {
         if (obj.isBoolean()) {
-            return ByteTag.of(obj.asBoolean());
+            return NbtByte.of(obj.asBoolean());
         } else if (obj.isNumber()) {
             if (obj.fitsInByte()) {
-                return ByteTag.of(obj.asByte());
+                return NbtByte.of(obj.asByte());
             } else if (obj.fitsInShort()) {
-                return ShortTag.of(obj.asShort());
+                return NbtShort.of(obj.asShort());
             } else if (obj.fitsInInt()) {
-                return IntTag.of(obj.asInt());
+                return NbtInt.of(obj.asInt());
             } else if (obj.fitsInFloat()) {
-                return FloatTag.of(obj.asFloat());
+                return NbtFloat.of(obj.asFloat());
             } else if (obj.fitsInLong()) {
-                return LongTag.of(obj.asLong());
+                return NbtLong.of(obj.asLong());
             } else if (obj.fitsInDouble()) {
-                return DoubleTag.of(obj.asDouble());
+                return NbtDouble.of(obj.asDouble());
             } else {
-                return DoubleTag.of(Double.NaN);
+                return NbtDouble.of(Double.NaN);
             }
         } else if (obj.isString()) {
-            return StringTag.of(obj.asString());
+            return NbtString.of(obj.asString());
         } else if (obj.hasArrayElements()) {
             return arrayToNbtList(obj);
         } else {
@@ -87,8 +87,8 @@ public class ScriptUtil {
         }
     }
 
-    private static CompoundTag objectToNbtCompound(Value obj) {
-        CompoundTag compound = new CompoundTag();
+    private static NbtCompound objectToNbtCompound(Value obj) {
+        NbtCompound compound = new NbtCompound();
         for (String key : obj.getMemberKeys()) {
             compound.put(key, toNbt(obj.getMember(key)));
         }
@@ -146,88 +146,88 @@ public class ScriptUtil {
         return type;
     }
 
-    private static AbstractListTag<?> arrayToNbtList(Value array) {
+    private static AbstractNbtList<?> arrayToNbtList(Value array) {
         byte type = getArrayType(array);
         int len = (int) array.getArraySize();
-        AbstractListTag<?> listTag;
+        AbstractNbtList<?> listTag;
         if (type == 1) // byte
-            listTag = new ByteArrayTag(new byte[len]);
+            listTag = new NbtByteArray(new byte[len]);
         else if (type == 2 || type == 3) // short, int
-            listTag = new IntArrayTag(new int[len]);
+            listTag = new NbtIntArray(new int[len]);
         else if (type == 4) // long
-            listTag = new LongArrayTag(new long[len]);
+            listTag = new NbtLongArray(new long[len]);
         else
-            listTag = new ListTag();
+            listTag = new NbtList();
 
         for (int index = 0; index < len; index++) {
             Value element = array.getArrayElement(index);
-            Tag elementTag = toNbt(element);
+            NbtElement elementTag = toNbt(element);
             if (type <= 4) { // integral number
-                if (!(elementTag instanceof AbstractNumberTag))
+                if (!(elementTag instanceof AbstractNbtNumber))
                     throw new IllegalStateException();
-                AbstractNumberTag num = (AbstractNumberTag) elementTag;
+                AbstractNbtNumber num = (AbstractNbtNumber) elementTag;
                 if (type == 1) // byte
-                    ((ByteArrayTag) listTag).getByteArray()[index] = num.getByte();
+                    ((NbtByteArray) listTag).getByteArray()[index] = num.byteValue();
                 else if (type == 2 || type == 3) // short, int
-                    ((IntArrayTag) listTag).getIntArray()[index] = num.getInt();
+                    ((NbtIntArray) listTag).getIntArray()[index] = num.intValue();
                 else if (type == 4) // long
-                    ((LongArrayTag) listTag).getLongArray()[index] = num.getLong();
+                    ((NbtLongArray) listTag).getLongArray()[index] = num.longValue();
             } else if (type == 7 || type == 11 || type == 12) { // integral arrays
-                if (!(elementTag instanceof AbstractListTag))
+                if (!(elementTag instanceof AbstractNbtList))
                     throw new IllegalStateException();
-                AbstractListTag<?> converted;
+                AbstractNbtList<?> converted;
                 if (type == 7) { // byte array
-                    if (elementTag instanceof ByteArrayTag) {
-                        converted = (ByteArrayTag) elementTag;
-                    } else if (elementTag instanceof IntArrayTag) {
-                        int[] from = ((IntArrayTag) elementTag).getIntArray();
+                    if (elementTag instanceof NbtByteArray) {
+                        converted = (NbtByteArray) elementTag;
+                    } else if (elementTag instanceof NbtIntArray) {
+                        int[] from = ((NbtIntArray) elementTag).getIntArray();
                         byte[] to = new byte[from.length];
                         for (int i = 0; i < from.length; i++)
                             to[i] = (byte) from[i];
-                        converted = new ByteArrayTag(to);
+                        converted = new NbtByteArray(to);
                     } else {
-                        long[] from = ((LongArrayTag) elementTag).getLongArray();
+                        long[] from = ((NbtLongArray) elementTag).getLongArray();
                         byte[] to = new byte[from.length];
                         for (int i = 0; i < from.length; i++)
                             to[i] = (byte) from[i];
-                        converted = new ByteArrayTag(to);
+                        converted = new NbtByteArray(to);
                     }
                 } else if (type == 11) { // int array
-                    if (elementTag instanceof ByteArrayTag) {
-                        byte[] from = ((ByteArrayTag) elementTag).getByteArray();
+                    if (elementTag instanceof NbtByteArray) {
+                        byte[] from = ((NbtByteArray) elementTag).getByteArray();
                         int[] to = new int[from.length];
                         for (int i = 0; i < from.length; i++)
                             to[i] = from[i];
-                        converted = new IntArrayTag(to);
-                    } else if (elementTag instanceof IntArrayTag) {
-                        converted = (IntArrayTag) elementTag;
+                        converted = new NbtIntArray(to);
+                    } else if (elementTag instanceof NbtIntArray) {
+                        converted = (NbtIntArray) elementTag;
                     } else {
-                        long[] from = ((LongArrayTag) elementTag).getLongArray();
+                        long[] from = ((NbtLongArray) elementTag).getLongArray();
                         int[] to = new int[from.length];
                         for (int i = 0; i < from.length; i++)
                             to[i] = (int) from[i];
-                        converted = new IntArrayTag(to);
+                        converted = new NbtIntArray(to);
                     }
                 } else { // long array
-                    if (elementTag instanceof ByteArrayTag) {
-                        byte[] from = ((ByteArrayTag) elementTag).getByteArray();
+                    if (elementTag instanceof NbtByteArray) {
+                        byte[] from = ((NbtByteArray) elementTag).getByteArray();
                         long[] to = new long[from.length];
                         for (int i = 0; i < from.length; i++)
                             to[i] = from[i];
-                        converted = new LongArrayTag(to);
-                    } else if (elementTag instanceof IntArrayTag) {
-                        int[] from = ((IntArrayTag) elementTag).getIntArray();
+                        converted = new NbtLongArray(to);
+                    } else if (elementTag instanceof NbtIntArray) {
+                        int[] from = ((NbtIntArray) elementTag).getIntArray();
                         long[] to = new long[from.length];
                         for (int i = 0; i < from.length; i++)
                             to[i] = from[i];
-                        converted = new LongArrayTag(to);
+                        converted = new NbtLongArray(to);
                     } else {
-                        converted = (LongArrayTag) elementTag;
+                        converted = (NbtLongArray) elementTag;
                     }
                 }
-                ((ListTag) listTag).add(converted);
+                ((NbtList) listTag).add(converted);
             } else {
-                ((ListTag) listTag).add(elementTag);
+                ((NbtList) listTag).add(elementTag);
             }
         }
         return listTag;
@@ -287,14 +287,14 @@ public class ScriptUtil {
         } else if (isFunction(obj)) {
             ScriptFunction func = asFunction(obj);
             return stack -> {
-                Object tag = fromNbt(stack.toTag(new CompoundTag()));
+                Object tag = fromNbt(stack.writeNbt(new NbtCompound()));
                 return asBoolean(func.call(tag));
             };
         } else {
-            Tag nbt = toNbt(obj);
-            if (!(nbt instanceof CompoundTag))
+            NbtElement nbt = toNbt(obj);
+            if (!(nbt instanceof NbtCompound))
                 throw new IllegalArgumentException(obj.toString());
-            return stack -> NbtHelper.matches(nbt, stack.toTag(new CompoundTag()), true);
+            return stack -> NbtHelper.matches(nbt, stack.writeNbt(new NbtCompound()), true);
         }
     }
 

@@ -5,8 +5,9 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.item.FoodComponent;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.tag.ItemTags;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
 import org.graalvm.polyglot.Value;
@@ -23,14 +24,14 @@ public class ScriptItemStack {
     }
 
     static ScriptItemStack ofUnchecked(Value obj) {
-        Tag itemNbt = ScriptUtil.toNbt(obj);
-        if (!(itemNbt instanceof CompoundTag)) {
+        NbtElement itemNbt = ScriptUtil.toNbt(obj);
+        if (!(itemNbt instanceof NbtCompound)) {
             Identifier itemId = new Identifier(ScriptUtil.asString(obj));
             if (!Registry.ITEM.containsId(itemId))
                 throw new IllegalArgumentException("Cannot convert " + obj + " to item");
             return new ScriptItemStack(new ItemStack(Registry.ITEM.get(itemId)));
         }
-        ItemStack stack = ItemStack.fromTag((CompoundTag) itemNbt);
+        ItemStack stack = ItemStack.fromNbt((NbtCompound) itemNbt);
         return new ScriptItemStack(stack);
     }
 
@@ -39,7 +40,7 @@ public class ScriptItemStack {
     }
 
     public Object getStack() {
-        return ScriptUtil.fromNbtCompound(stack.toTag(new CompoundTag()));
+        return ScriptUtil.fromNbtCompound(stack.writeNbt(new NbtCompound()));
     }
 
     public float getMiningSpeed(String block) {
@@ -55,7 +56,7 @@ public class ScriptItemStack {
     }
 
     public boolean isEffectiveOn(ScriptBlockState block) {
-        return stack.isEffectiveOn(block.state);
+        return stack.isSuitableFor(block.state);
     }
 
     public int getMaxCount() {
@@ -102,7 +103,7 @@ public class ScriptItemStack {
         }
         //noinspection StaticPseudoFunctionalStyleMethod
         return Lists.transform(
-                new ArrayList<>(networkHandler.getTagManager().getItems().getTagsFor(stack.getItem())),
+                new ArrayList<>(ItemTags.getTagGroup().getTagsFor(stack.getItem())),
                 ScriptUtil::simplifyIdentifier);
     }
 

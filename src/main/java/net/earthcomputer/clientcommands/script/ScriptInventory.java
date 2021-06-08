@@ -1,13 +1,12 @@
 package net.earthcomputer.clientcommands.script;
 
 import com.google.common.collect.Lists;
-import net.earthcomputer.clientcommands.interfaces.ISlot;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.screen.HorseScreenHandler;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -56,16 +55,16 @@ public class ScriptInventory {
         List<Object> ret = new ArrayList<>();
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (container == player.playerScreenHandler) {
-            for (int i = 0; i < player.inventory.size(); i++) {
-                ret.add(ScriptUtil.fromNbt(player.inventory.getStack(i).toTag(new CompoundTag())));
+            for (int i = 0; i < player.getInventory().size(); i++) {
+                ret.add(ScriptUtil.fromNbt(player.getInventory().getStack(i).writeNbt(new NbtCompound())));
             }
             // crafting grid
             for (int i = 0; i < 5; i++)
-                ret.add(ScriptUtil.fromNbt(container.slots.get(i).getStack().toTag(new CompoundTag())));
+                ret.add(ScriptUtil.fromNbt(container.slots.get(i).getStack().writeNbt(new NbtCompound())));
         } else {
             for (Slot slot : container.slots) {
-                if (slot.inventory != player.inventory) {
-                    ret.add(ScriptUtil.fromNbt(slot.getStack().toTag(new CompoundTag())));
+                if (slot.inventory != player.getInventory()) {
+                    ret.add(ScriptUtil.fromNbt(slot.getStack().writeNbt(new NbtCompound())));
                 }
             }
         }
@@ -189,21 +188,21 @@ public class ScriptInventory {
         assert player != null;
 
         if (container == player.playerScreenHandler) {
-            if (id < player.inventory.size()) {
+            if (id < player.getInventory().size()) {
                 for (Slot slot : player.currentScreenHandler.slots) {
-                    if (slot.inventory == player.inventory && ((ISlot) slot).getIndex() == id) {
+                    if (slot.inventory == player.getInventory() && slot.getIndex() == id) {
                         return slot;
                     }
                 }
             }
             if (container == player.currentScreenHandler) {
-                return container.getSlot(id - player.inventory.size());
+                return container.getSlot(id - player.getInventory().size());
             }
         } else {
             int containerId = 0;
             for (int i = 0; i < container.slots.size(); i++) {
                 Slot slot = container.getSlot(i);
-                if (slot.inventory != player.inventory) {
+                if (slot.inventory != player.getInventory()) {
                     if (id == containerId)
                         return slot;
                     containerId++;
@@ -219,16 +218,16 @@ public class ScriptInventory {
         assert player != null;
 
         if (container == player.playerScreenHandler) {
-            if (slot.inventory == player.inventory) {
-                return ((ISlot) slot).getIndex();
+            if (slot.inventory == player.getInventory()) {
+                return slot.getIndex();
             } else {
-                return ((ISlot) slot).getIndex() + player.inventory.size();
+                return slot.getIndex() + player.getInventory().size();
             }
         } else {
             int containerId = 0;
             for (int i = 0; i < container.slots.size(); i++) {
                 Slot otherSlot = container.getSlot(i);
-                if (otherSlot.inventory != player.inventory) {
+                if (otherSlot.inventory != player.getInventory()) {
                     if (otherSlot == slot)
                         return containerId;
                     containerId++;
@@ -244,12 +243,12 @@ public class ScriptInventory {
 
         if (container == player.playerScreenHandler) {
             return player.currentScreenHandler.slots.stream()
-                    .filter(slot -> slot.inventory == player.inventory)
+                    .filter(slot -> slot.inventory == player.getInventory())
                     .sorted(Comparator.comparingInt(this::getIdForSlot))
                     .collect(Collectors.toList());
         } else {
             return container.slots.stream()
-                    .filter(slot -> slot.inventory != player.inventory)
+                    .filter(slot -> slot.inventory != player.getInventory())
                     .collect(Collectors.toList());
         }
     }

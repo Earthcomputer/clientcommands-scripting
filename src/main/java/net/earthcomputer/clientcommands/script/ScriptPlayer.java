@@ -33,7 +33,6 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3i;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import org.graalvm.polyglot.Value;
@@ -79,7 +78,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
         getEntity().setPos(x, y, z);
 
         if (sync)
-            getEntity().networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionOnly(x, y, z, getEntity().isOnGround()));
+            getEntity().networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, getEntity().isOnGround()));
 
         return true;
     }
@@ -259,7 +258,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
 
         try {
             while (path[0] != null && !path[0].isFinished()) {
-                Vec3i currentPosition = path[0].getNode(path[0].getCurrentNodeIndex()).getPos();
+                Vec3d currentPosition = path[0].getNode(path[0].getCurrentNodeIndex()).getPos();
                 if (!moveTo(currentPosition.getX() + 0.5, currentPosition.getZ() + 0.5))
                     return false;
                 path[0].setCurrentNodeIndex(path[0].getCurrentNodeIndex() + 1);
@@ -280,11 +279,11 @@ public class ScriptPlayer extends ScriptLivingEntity {
     }
 
     public void setYaw(float yaw) {
-        getEntity().yaw = yaw;
+        getEntity().setYaw(yaw);
     }
 
     public void setPitch(float pitch) {
-        getEntity().pitch = pitch;
+        getEntity().setPitch(pitch);
     }
 
     public void lookAt(double x, double y, double z) {
@@ -293,8 +292,8 @@ public class ScriptPlayer extends ScriptLivingEntity {
         double dy = y - (player.getY() + getEyeHeight());
         double dz = z - player.getZ();
         double dh = Math.sqrt(dx * dx + dz * dz);
-        player.yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90;
-        player.pitch = (float) -Math.toDegrees(Math.atan2(dy, dh));
+        player.setYaw((float) Math.toDegrees(Math.atan2(dz, dx)) - 90);
+        player.setPitch((float) -Math.toDegrees(Math.atan2(dy, dh)));
     }
 
     public void lookAt(ScriptEntity entity) {
@@ -307,15 +306,15 @@ public class ScriptPlayer extends ScriptLivingEntity {
     }
 
     public void syncRotation() {
-        getEntity().networkHandler.sendPacket(new PlayerMoveC2SPacket.LookOnly(getEntity().yaw, getEntity().pitch, getEntity().isOnGround()));
+        getEntity().networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(getEntity().getYaw(), getEntity().getPitch(), getEntity().isOnGround()));
     }
 
     public int getSelectedSlot() {
-        return getEntity().inventory.selectedSlot;
+        return getEntity().getInventory().selectedSlot;
     }
 
     public void setSelectedSlot(int slot) {
-        getEntity().inventory.selectedSlot = MathHelper.clamp(slot, 0, 8);
+        getEntity().getInventory().selectedSlot = MathHelper.clamp(slot, 0, 8);
     }
 
     public Object getInventory() {
@@ -429,7 +428,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
                         Slot slot = container.getSlot(slotId);
                         if (!ingredientPredicates.get(c).test(slot.getStack())) {
                             if (slot.hasStack()) {
-                                if (!getEntity().inventory.getCursorStack().isEmpty()) {
+                                if (!container.getCursorStack().isEmpty()) {
                                     craftInsertIntoPlayerInv(container, interactionManager);
                                 }
                                 interactionManager.clickSlot(container.syncId, slotId, 0, SlotActionType.QUICK_MOVE, getEntity());
@@ -452,15 +451,15 @@ public class ScriptPlayer extends ScriptLivingEntity {
                         break craftLoop;
                     }
                 }
-                ItemStack cursorStack = getEntity().inventory.getCursorStack();
-                if (!ScreenHandler.canStacksCombine(getEntity().inventory.getCursorStack(), resultSlot.getStack())
+                ItemStack cursorStack = container.getCursorStack();
+                if (!ItemStack.canCombine(container.getCursorStack(), resultSlot.getStack())
                         || cursorStack.getCount() + resultSlot.getStack().getCount() > cursorStack.getMaxCount()) {
                     craftInsertIntoPlayerInv(container, interactionManager);
                 }
                 interactionManager.clickSlot(container.syncId, resultSlotIndex, 0, SlotActionType.PICKUP, getEntity());
                 craftsNeeded--;
             } else {
-                if (!getEntity().inventory.getCursorStack().isEmpty()) {
+                if (!container.getCursorStack().isEmpty()) {
                     craftInsertIntoPlayerInv(container, interactionManager);
                 }
                 boolean craftingGridStartedEmpty = true;
@@ -515,7 +514,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
 
     private void emptyCraftingGrid(AbstractRecipeScreenHandler<?> container, int resultSlotIndex, int craftingSlotCount, ClientPlayerInteractionManager interactionManager) {
         // Get rid of all items in the cursor + the crafting grid
-        if (!getEntity().inventory.getCursorStack().isEmpty()) {
+        if (!container.getCursorStack().isEmpty()) {
             craftInsertIntoPlayerInv(container, interactionManager);
         }
         for (int slotIndex = resultSlotIndex + 1; slotIndex < resultSlotIndex + craftingSlotCount; slotIndex++) {
@@ -530,13 +529,13 @@ public class ScriptPlayer extends ScriptLivingEntity {
     }
 
     private void craftInsertIntoPlayerInv(AbstractRecipeScreenHandler<?> container, ClientPlayerInteractionManager interactionManager) {
-        ItemStack cursorStack = getEntity().inventory.getCursorStack();
+        ItemStack cursorStack = container.getCursorStack();
         int cursorStackCount = cursorStack.getCount();
 
         for (int playerSlotIndex = 0; playerSlotIndex < container.slots.size(); playerSlotIndex++) {
             Slot slot = container.getSlot(playerSlotIndex);
             if (isPlayerInvSlot(container, slot)) {
-                if (ScreenHandler.canStacksCombine(cursorStack, slot.getStack())) {
+                if (ItemStack.canCombine(cursorStack, slot.getStack())) {
                     int maxCount = Math.min(cursorStack.getMaxCount(), slot.getMaxItemCount(cursorStack));
                     if (slot.getStack().getCount() < maxCount) {
                         interactionManager.clickSlot(container.syncId, playerSlotIndex, 0, SlotActionType.PICKUP, getEntity());
@@ -570,7 +569,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
     public boolean pick(Value itemStack) {
         Predicate<ItemStack> predicate = ScriptUtil.asItemStackPredicate(itemStack);
 
-        PlayerInventory inv = getEntity().inventory;
+        PlayerInventory inv = getEntity().getInventory();
         int slot;
         for (slot = 0; slot < inv.main.size(); slot++) {
             if (predicate.test(inv.main.get(slot)))

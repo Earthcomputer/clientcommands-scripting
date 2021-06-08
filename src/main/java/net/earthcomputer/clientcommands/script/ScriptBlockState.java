@@ -11,6 +11,7 @@ import net.minecraft.block.FallingBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.state.property.Property;
+import net.minecraft.tag.BlockTags;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
 
@@ -100,7 +101,7 @@ public class ScriptBlockState {
 
     public int getMapColor() {
         try {
-            return state.getTopMaterialColor(null, null).color;
+            return state.getMapColor(null, null).color;
         } catch (Throwable e) {
             return state.getMaterial().getColor().color;
         }
@@ -153,7 +154,7 @@ public class ScriptBlockState {
         }
         //noinspection StaticPseudoFunctionalStyleMethod
         return Lists.transform(
-                new ArrayList<>(networkHandler.getTagManager().getBlocks().getTagsFor(state.getBlock())),
+                new ArrayList<>(BlockTags.getTagGroup().getTagsFor(state.getBlock())),
                 ScriptUtil::simplifyIdentifier);
     }
 

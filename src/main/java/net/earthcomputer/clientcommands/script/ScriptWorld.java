@@ -8,7 +8,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -30,7 +30,7 @@ public class ScriptWorld {
     public String getDimension() {
         ClientPlayNetworkHandler networkHandler = MinecraftClient.getInstance().getNetworkHandler();
         assert networkHandler != null;
-        return ScriptUtil.simplifyIdentifier(networkHandler.getRegistryManager().getDimensionTypes().getId(getWorld().getDimension()));
+        return ScriptUtil.simplifyIdentifier(networkHandler.getRegistryManager().get(Registry.DIMENSION_TYPE_KEY).getId(getWorld().getDimension()));
     }
 
     public String getBlock(int x, int y, int z) {
@@ -54,7 +54,7 @@ public class ScriptWorld {
         BlockEntity be = getWorld().getBlockEntity(new BlockPos(x, y, z));
         if (be == null)
             return null;
-        return ScriptUtil.fromNbt(be.toTag(new CompoundTag()));
+        return ScriptUtil.fromNbt(be.writeNbt(new NbtCompound()));
     }
 
     public int getBlockLight(int x, int y, int z) {

@@ -4,7 +4,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.registry.Registry;
 
 import java.lang.ref.WeakReference;
@@ -32,7 +32,7 @@ public class ScriptEntity {
     ScriptEntity(Entity entity) {
         if (entity != null) {
             this.entity = new WeakReference<>(entity);
-            this.entityId = entity.getEntityId();
+            this.entityId = entity.getId();
         }
     }
 
@@ -48,7 +48,7 @@ public class ScriptEntity {
                 this.entity = new WeakReference<>(entity);
             }
         }
-        if (entity != null && entity.removed) {
+        if (entity != null && entity.isRemoved()) {
             entity = null;
         }
         if (entity == null) {
@@ -86,11 +86,11 @@ public class ScriptEntity {
     }
 
     public float getYaw() {
-        return getEntity().yaw;
+        return getEntity().getYaw();
     }
 
     public float getPitch() {
-        return getEntity().pitch;
+        return getEntity().getPitch();
     }
 
     public double getMotionX() {
@@ -106,7 +106,7 @@ public class ScriptEntity {
     }
 
     public Object getNbt() {
-        return ScriptUtil.fromNbt(getEntity().toTag(new CompoundTag()));
+        return ScriptUtil.fromNbt(getEntity().writeNbt(new NbtCompound()));
     }
 
     @Override
