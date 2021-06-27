@@ -24,5 +24,10 @@
   },
   "mixins": [
     "clientcommands-scripting.mixins.json"
-  ]
+  ],
+  "custom": {
+    "modmenu": {
+        "parent": "clientcommands"
+    }
+  }
 }
