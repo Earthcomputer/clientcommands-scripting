@@ -592,9 +592,10 @@ declare class World {
  */
 declare class Thread {
     /**
-     * The currently executing thread
+     * The currently executing thread. If this thread is not a clientcommands thread or the main script thread, then
+     * this returns null. This is possible for example via JsMacros' JavaWrapper.
      */
-    static readonly current: Thread;
+    static readonly current: Thread | null;
 
     /**
      * Whether the thread is currently running. Note this does not necessarily mean this

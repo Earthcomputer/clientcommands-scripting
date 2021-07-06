@@ -435,21 +435,9 @@ var pickUpItemsLoop = function() {
     mainThread.kill();
 };
 
-print("D");
-
 var mainThread = Thread.current;
-
-print("E");
 
 new Thread(pickUpItemsLoop).run();
 new Thread(makeTunnelLoop).run();
 
-print("A");
-
-try {
-    while (true) tick(); // keep running until killed
-} catch (e) {
-    print("C");
-}
-
-print("B");
+while (true) tick(); // keep running until killed

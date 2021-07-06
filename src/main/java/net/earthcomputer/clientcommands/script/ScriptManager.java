@@ -444,6 +444,7 @@ public class ScriptManager {
             if (mainThread != null) {
                 Thread mainThread = this.mainThread.get();
                 if (mainThread == null || !mainThread.isAlive()) {
+                    running = false;
                     return killed = true;
                 }
             }

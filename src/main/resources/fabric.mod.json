@@ -22,6 +22,9 @@
     "fabricloader": ">=0.11.3",
     "minecraft": "1.17.x"
   },
+  "breaks": {
+    "jsmacros": "<1.5"
+  },
   "mixins": [
     "clientcommands-scripting.mixins.json"
   ],
