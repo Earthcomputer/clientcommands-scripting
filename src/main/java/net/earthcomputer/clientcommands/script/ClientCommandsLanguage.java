@@ -56,6 +56,7 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
         });
 
         globals.forEach(binds::putMember);
+        libs.forEach(binds::putMember);
 
         return con;
     }

@@ -20,7 +20,8 @@ public class ScriptThread {
     }
 
     public static ScriptThread current() {
-        return ScriptManager.currentThread().handle;
+        ScriptManager.ThreadInstance thread = ScriptManager.currentThread();
+        return thread == null ? null : thread.handle;
     }
 
     public static ScriptThread getCurrent() {
@@ -28,7 +29,7 @@ public class ScriptThread {
     }
 
     public boolean isRunning() {
-        return thread.running && !thread.killed;
+        return thread.running && !thread.isKilled();
     }
 
     public boolean isPaused() {
@@ -40,7 +41,7 @@ public class ScriptThread {
     }
 
     public ScriptThread getParent() {
-        return thread.parent == null ? null : thread.parent.handle;
+        return thread.parent == null || thread.parent.isKilled() ? null : thread.parent.handle;
     }
 
     public List<ScriptThread> getChildren() {
@@ -50,7 +51,7 @@ public class ScriptThread {
 
     public void run() {
         if (!thread.running)
-            ScriptManager.runThread(thread);
+            ScriptManager.runThread(thread, false);
     }
 
     public void pause() {
@@ -62,7 +63,7 @@ public class ScriptThread {
     }
 
     public void kill() {
-        thread.killed = true;
+        thread.kill();
     }
 
     public void waitFor() {

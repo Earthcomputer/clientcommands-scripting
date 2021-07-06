@@ -16,13 +16,6 @@ public abstract class MixinMinecraftClient implements IMinecraftClient {
 
     @Shadow protected abstract void handleBlockBreaking(boolean bl);
 
-    @Inject(method = "tick", at = @At("HEAD"))
-    private void onTick(CallbackInfo ci) {
-        if (ClientCommandsScripting.isJsMacrosPresent) {
-            ScriptManager.tick();
-        }
-    }
-
     @Inject(method = "handleInputEvents", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayerEntity;isUsingItem()Z", ordinal = 0), cancellable = true)
     public void onHandleInputEvents(CallbackInfo ci) {
         if (ClientCommandsScripting.isJsMacrosPresent) {

@@ -3,25 +3,27 @@ package net.earthcomputer.clientcommands.script;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import net.earthcomputer.clientcommands.command.ClientCommandManager;
 import net.earthcomputer.clientcommands.task.LongTask;
 import net.earthcomputer.clientcommands.task.SimpleTask;
 import net.earthcomputer.clientcommands.task.TaskManager;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.command.CommandSource;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.LiteralText;
 import net.minecraft.text.TranslatableText;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Context;
+import org.jetbrains.annotations.Nullable;
 import xyz.wagyourtail.jsmacros.client.JsMacros;
+import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
 import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
+import xyz.wagyourtail.jsmacros.core.language.ScriptContext;
+import xyz.wagyourtail.jsmacros.core.library.impl.FJsMacros;
+import xyz.wagyourtail.jsmacros.core.library.impl.FWrapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,20 +32,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public class ScriptManager {
     private static final Logger LOGGER = LogManager.getLogger("ScriptManager");
@@ -54,10 +56,8 @@ public class ScriptManager {
     private static Path legacyScriptsDir;
     private static final Map<String, String> legacyScripts = new HashMap<>();
 
-    private static final Deque<ThreadInstance> threadStack = new ArrayDeque<>();
     private static final List<ThreadInstance> runningThreads = new ArrayList<>();
-
-    private static final AtomicInteger nextThreadId = new AtomicInteger();
+    private static final Map<ScriptContext<?>, AdditionalContextInfo> additionalContextInfo = new WeakHashMap<>();
 
     public static void inject() {
         LOGGER.info("Injecting clientcommands into jsmacros");
@@ -112,20 +112,91 @@ public class ScriptManager {
         return Collections.unmodifiableSet(legacyScripts.keySet());
     }
 
+    @Nullable
     static ThreadInstance currentThread() {
-        return threadStack.peek();
+        AdditionalContextInfo additionalContext = additionalContext();
+        ThreadInstance thread = additionalContext.currentClientcommandsThread.get();
+        if (thread != null) {
+            return thread;
+        }
+        Thread currentThread = Thread.currentThread();
+        if (currentThread != scriptContext().getMainThread().get()) {
+            return null;
+        }
+        thread = new ScriptThread(() -> null, false).thread;
+        thread.mainThread = new WeakReference<>(currentThread);
+        runThread(thread, true);
+        return thread;
     }
 
-    static Context currentContext() {
-        Context context = Context.getCurrent();
-        return context.getBindings("js").getMember("context").<ContextContainer<Context>>asHostObject().getCtx().getContext().get();
+    static ThreadInstance requireCurrentThread() {
+        ThreadInstance thread = currentThread();
+        if (thread == null) {
+            throw new IllegalStateException("This operation must be called in a clientcommands thread or the main thread");
+        }
+        return thread;
+    }
+
+    @Nullable
+    static ThreadInstance getFirstRunningThread() {
+        AdditionalContextInfo additionalContext = additionalContext();
+        Iterator<ThreadInstance> threadItr = additionalContext.runningClientcommandsThreads.iterator();
+        if (!threadItr.hasNext()) {
+            return null;
+        }
+
+        ThreadInstance thread = threadItr.next();
+        if (thread.mainThread != null || isMainThreadRunning()) {
+            return thread;
+        }
+
+        threadItr.remove();
+        if (!threadItr.hasNext()) {
+            return null;
+        }
+        return threadItr.next();
+    }
+
+    static boolean isMainThreadRunning() {
+        Thread mainThread = scriptContext().getMainThread().get();
+        return mainThread != null && mainThread.isAlive();
+    }
+
+    @Nullable
+    static ContextContainer<?> currentContext() {
+        return Core.instance.eventContexts.get(Thread.currentThread());
+    }
+
+    static ScriptContext<?> scriptContext() {
+        return Core.instance.threadContext.get(Thread.currentThread());
+    }
+
+    static AdditionalContextInfo additionalContext() {
+        return additionalContextInfo.computeIfAbsent(scriptContext(), k -> new AdditionalContextInfo());
+    }
+
+    static <T> T getBinding(String name) {
+        Context context = (Context) scriptContext().getContext().get();
+        if (context == null) {
+            throw new IllegalStateException("Could not get " + name + " because context is null");
+        }
+        return context.getBindings("js").getMember(name).asHostObject();
+    }
+
+    static FJsMacros jsMacros() {
+        return getBinding("JsMacros");
+    }
+
+    static FWrapper javaWrapper() {
+        return getBinding("JavaWrapper");
     }
 
     public static void executeScript(String scriptFile) throws CommandSyntaxException {
         if (!Files.exists(JsMacros.core.config.macroFolder.toPath().resolve(scriptFile))) {
             throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptFile);
         }
-        execute0((then, catcher) -> JsMacros.core.exec(new ScriptTrigger(ScriptTrigger.TriggerType.EVENT, "", scriptFile, true), null, then, catcher));
+
+        JsMacros.core.exec(new ScriptTrigger(ScriptTrigger.TriggerType.EVENT, "", scriptFile, true), null);
     }
 
     public static void executeLegacyScript(String scriptName) throws CommandSyntaxException {
@@ -133,60 +204,13 @@ public class ScriptManager {
         if (scriptSource == null)
             throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptName);
 
-        execute0((then, catcher) -> language.trigger(scriptSource, then, catcher));
-    }
-
-    private static void execute0(BiConsumer<Runnable, Consumer<Throwable>> runner) {
-        ThreadInstance thread = new ScriptThread(() -> {
-            CompletableFuture<Void> future = new CompletableFuture<>();
-            runner.accept(() -> future.complete(null), future::completeExceptionally);
-            future.join();
-            return null;
-        }, false).thread;
-        runThread(thread);
+        language.trigger(scriptSource, null, null);
     }
 
     static ThreadInstance createThread(ScriptThread handle, Callable<Void> task, boolean daemon) {
         ThreadInstance thread = new ThreadInstance();
         thread.handle = handle;
-        thread.javaThread = new Thread(() -> {
-            if (thread.parentContext != null) {
-                Context parentContext = thread.parentContext.get();
-                if (parentContext != null) {
-                    parentContext.enter();
-                }
-            }
-            try {
-                task.call();
-            } catch (Throwable e) {
-                if (!thread.killed && !thread.task.isCompleted()) {
-                    try {
-                        ClientCommandManager.sendError(new LiteralText(e.getMessage() == null ? e.toString() : e.getMessage()));
-                    } catch (Throwable e1) {
-                        LOGGER.error("Error sending error to chat", e1);
-                    }
-                    LOGGER.error("An error occurred in a script command: ", e);
-                }
-            }
-            runningThreads.remove(thread);
-            if (thread.parentContext != null && !thread.killed && !thread.task.isCompleted()) {
-                Context parentContext = thread.parentContext.get();
-                if (parentContext != null) {
-                    parentContext.leave();
-                }
-            }
-            if (thread.parent != null)
-                thread.parent.children.remove(thread);
-            for (ThreadInstance child : thread.children) {
-                child.parent = null;
-                if (child.daemon)
-                    child.killed = true;
-            }
-            thread.running = false;
-            thread.blocked.set(true);
-        });
-        thread.javaThread.setName("ClientCommands script thread " + nextThreadId.getAndIncrement());
-        thread.javaThread.setDaemon(true);
+        thread.onRun = task;
         thread.task = new SimpleTask() {
             @Override
             public boolean condition() {
@@ -202,91 +226,141 @@ public class ScriptManager {
         return thread;
     }
 
-    static void runThread(ThreadInstance thread) {
+    static void runThread(ThreadInstance thread, boolean mainThread) {
+        ThreadInstance parentThread = mainThread ? null : currentThread();
+
         TaskManager.addTask("cscript", thread.task);
         runningThreads.add(thread);
         thread.running = true;
 
-        Context context = null;
-        if (currentThread() != null) {
-            currentThread().children.add(thread);
-            thread.parent = currentThread();
-            context = currentContext();
+        if (parentThread != null) {
+            parentThread.children.add(thread);
+            thread.parent = parentThread;
+        }
+
+        if (mainThread) {
+            AdditionalContextInfo additionalContext = additionalContext();
+            additionalContext.currentClientcommandsThread.set(thread);
+            // insert main thread at the start of the running clientcommands threads
+            ArrayList<ThreadInstance> copy = new ArrayList<>(additionalContext.runningClientcommandsThreads);
+            additionalContext.runningClientcommandsThreads.clear();
+            additionalContext.runningClientcommandsThreads.add(thread);
+            additionalContext.runningClientcommandsThreads.addAll(copy);
+        } else {
+            FWrapper javaWrapper = javaWrapper();
+            FWrapper.WrappedThread currentTask = javaWrapper.tasks.peek();
+            assert currentTask != null && currentTask.thread == Thread.currentThread();
+            // Hack: clear the task list to make our task run straight away
+            List<FWrapper.WrappedThread> oldTasks = new ArrayList<>(javaWrapper.tasks);
+            javaWrapper.tasks.clear();
+
+            Semaphore threadStarted = new Semaphore(0);
+
+            Context context = (Context) scriptContext().getContext().get();
+            assert context != null;
+
             context.leave();
-            thread.parentContext = new WeakReference<>(context);
-        }
 
-        threadStack.push(thread);
-        thread.javaThread.start();
-        while (!thread.blocked.get()) {
+            javaWrapper.methodToJavaAsync(args -> {
+                // add back the tasks we cleared.
+                // note that this adds the parent thread task first,
+                javaWrapper().tasks.addAll(oldTasks);
+                threadStarted.release();
+
+                AdditionalContextInfo additionalContext = additionalContext();
+                additionalContext.currentClientcommandsThread.set(thread);
+                additionalContext.runningClientcommandsThreads.add(thread);
+
+                try {
+                    thread.onRun.call();
+                } catch (Throwable e) {
+                    if (!thread.killed && !thread.task.isCompleted()) {
+                        Core.instance.profile.logError(e);
+                    }
+                }
+
+                runningThreads.remove(thread);
+                additionalContext.runningClientcommandsThreads.remove(thread);
+                additionalContext.currentClientcommandsThread.set(null);
+
+                if (thread.parent != null) {
+                    thread.parent.children.remove(thread);
+                }
+                for (ThreadInstance child : thread.children) {
+                    child.parent = null;
+                    if (child.daemon) {
+                        child.killed = true;
+                    }
+                }
+                thread.running = false;
+
+                return null;
+            }).run();
+
+            // Wait for started thread to either finish or reach a tick() method
             try {
-                //noinspection BusyWait
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        threadStack.pop();
+                threadStarted.acquire();
 
-        if (context != null) {
+                FWrapper.WrappedThread joinable = javaWrapper.tasks.peek();
+                while (true) {
+                    assert joinable != null;
+                    if (joinable.thread == Thread.currentThread()) break;
+                    joinable.waitFor();
+                    joinable = javaWrapper.tasks.peek();
+                }
+            } catch (InterruptedException e) {
+                thread.kill();
+            }
+
             context.enter();
         }
     }
 
-    public static void tick() {
-        for (ThreadInstance thread : new ArrayList<>(runningThreads)) {
-            if (thread.paused || !thread.running) continue;
-
-            threadStack.push(thread);
-            thread.blocked.set(false);
-            while (!thread.blocked.get()) {
-                try {
-                    //noinspection BusyWait
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            threadStack.pop();
-        }
-    }
-
     static void passTick() {
-        ThreadInstance thread = currentThread();
-        Context context = currentContext();
-        context.leave();
-        thread.blocked.set(true);
-        while (thread.blocked.get()) {
-            try {
-                //noinspection BusyWait
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        ThreadInstance thread = requireCurrentThread();
+        try {
+            if (thread == getFirstRunningThread()) {
+                jsMacros().waitForEvent("JoinedTick", null, javaWrapper().methodToJava(args -> {
+                    ContextContainer<?> context = currentContext();
+                    if (context != null) {
+                        context.releaseLock();
+                    }
+                    try {
+                        javaWrapper().deferCurrentTask();
+                    } catch (InterruptedException e) {
+                        thread.kill();
+                    }
+                    return null;
+                }));
+            } else {
+                javaWrapper().deferCurrentTask();
             }
+        } catch (InterruptedException e) {
+            thread.kill();
+        }
+        if (thread.daemon && thread.parent != null && thread.parent.isKilled()) {
+            thread.parent = null;
+            thread.kill();
         }
         if (thread.killed || thread.task.isCompleted()) {
             throw new ScriptInterruptedException();
         }
-        context.enter();
     }
 
     static void blockInput(boolean blockInput) {
-        currentThread().blockingInput = blockInput;
+        requireCurrentThread().blockingInput = blockInput;
     }
 
     static boolean isCurrentScriptBlockingInput() {
-        return currentThread().blockingInput;
+        return requireCurrentThread().blockingInput;
     }
 
     public static boolean blockingInput() {
-        for (ThreadInstance script : runningThreads)
-            if (script.blockingInput)
-                return true;
-        return false;
+        return anyRunningThread(t -> t.blockingInput);
     }
 
     static Input getScriptInput() {
-        return currentThread().input;
+        return requireCurrentThread().input;
     }
 
     public static void copyScriptInputToPlayer(boolean inSneakingPose) {
@@ -295,14 +369,14 @@ public class ScriptManager {
             return;
         }
         Input playerInput = player.input;
-        for (ThreadInstance thread : runningThreads) {
+        forEachRunningThread(thread -> {
             playerInput.pressingForward |= thread.input.pressingForward;
             playerInput.pressingBack |= thread.input.pressingBack;
             playerInput.pressingLeft |= thread.input.pressingLeft;
             playerInput.pressingRight |= thread.input.pressingRight;
             playerInput.jumping |= thread.input.jumping;
             playerInput.sneaking |= thread.input.sneaking;
-        }
+        });
         playerInput.movementForward = playerInput.pressingForward ^ playerInput.pressingBack ? (playerInput.pressingForward ? 1 : -1) : 0;
         playerInput.movementSideways = playerInput.pressingLeft ^ playerInput.pressingRight ? (playerInput.pressingLeft ? 1 : -1) : 0;
         if (playerInput.sneaking || inSneakingPose) {
@@ -312,38 +386,78 @@ public class ScriptManager {
     }
 
     static void setSprinting(boolean sprinting) {
-        currentThread().sprinting = sprinting;
+        requireCurrentThread().sprinting = sprinting;
     }
 
     static boolean isCurrentThreadSprinting() {
-        return currentThread().sprinting;
+        return requireCurrentThread().sprinting;
     }
 
     public static boolean isSprinting() {
-        for (ThreadInstance thread : runningThreads)
-            if (thread.sprinting)
-                return true;
-        return false;
+        return anyRunningThread(t -> t.sprinting);
+    }
+
+    private static void forEachRunningThread(Consumer<ThreadInstance> consumer) {
+        anyRunningThread(t -> {
+            consumer.accept(t);
+            return false;
+        });
+    }
+
+    private static boolean anyRunningThread(Predicate<ThreadInstance> predicate) {
+        boolean result = false;
+        Iterator<ThreadInstance> itr = runningThreads.iterator();
+        while (itr.hasNext()) {
+            ThreadInstance thread = itr.next();
+            if (thread.isKilled()) {
+                itr.remove();
+            } else {
+                result |= predicate.test(thread);
+            }
+        }
+        return result;
     }
 
     static class ThreadInstance {
         ScriptThread handle;
 
+        // A reference to the current thread if this is the main thread
+        WeakReference<Thread> mainThread = null;
+        Callable<Void> onRun;
         boolean daemon;
         boolean paused;
-        boolean killed;
+        private boolean killed;
         ThreadInstance parent;
-        WeakReference<Context> parentContext;
         List<ThreadInstance> children = new ArrayList<>(0);
 
-        private Thread javaThread;
-        private final AtomicBoolean blocked = new AtomicBoolean(false);
         boolean running;
         private LongTask task;
         private boolean blockingInput = false;
         @SuppressWarnings("NewExpressionSideOnly")
         private final Input input = new Input();
         private boolean sprinting = false;
+
+        boolean isKilled() {
+            if (killed) {
+                return true;
+            }
+            if (mainThread != null) {
+                Thread mainThread = this.mainThread.get();
+                if (mainThread == null || !mainThread.isAlive()) {
+                    return killed = true;
+                }
+            }
+            return false;
+        }
+
+        void kill() {
+            killed = true;
+        }
+    }
+
+    static class AdditionalContextInfo {
+        Set<ThreadInstance> runningClientcommandsThreads = new LinkedHashSet<>();
+        ThreadLocal<ThreadInstance> currentClientcommandsThread = new ThreadLocal<>();
     }
 
 }
