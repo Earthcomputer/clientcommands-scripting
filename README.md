@@ -26,6 +26,7 @@ As this mod is a submodule of clientcommands, you must clone it as a submodule o
    ./gradlew build
    ```
    The mod JAR may be found in the `build/libs` directory
+    - Note: the build is currently slightly broken, in that you may need to run this command twice before the build is successful. So if the build fails, just run it again and it should hopefully succeed the second time.
 1. [Create a pull request](https://help.github.com/en/articles/creating-a-pull-request)
    so that your changes can be integrated into Clientcommands Scripting
     - Note: for large contributions, create an issue before doing all that
