@@ -23,7 +23,7 @@
     "minecraft": "1.17.x"
   },
   "breaks": {
-    "jsmacros": "<1.5"
+    "jsmacros": "<1.6"
   },
   "mixins": [
     "clientcommands-scripting.mixins.json"
