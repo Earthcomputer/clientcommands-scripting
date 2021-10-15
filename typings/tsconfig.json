@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "module": "None",
+    },
+    "files": [
+        "clientcommands.ts"
+    ],
+    "typedocOptions": {
+        "entryPoints": ["clientcommands.ts"],
+        "out": "../docs/"
+    }
+}
