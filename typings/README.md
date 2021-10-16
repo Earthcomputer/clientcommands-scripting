@@ -1,2 +1,2 @@
 # Clientcommands Scripting API
-You should go [here](./modules.html)
+You should go [here](./modules/Clientcommands.html)
