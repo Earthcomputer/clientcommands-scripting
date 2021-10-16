@@ -3,10 +3,10 @@
         "module": "None",
     },
     "files": [
-        "clientcommands.ts"
+        "clientcommands.d.ts"
     ],
     "typedocOptions": {
-        "entryPoints": ["clientcommands.ts"],
+        "entryPoints": ["clientcommands.d.ts"],
         "out": "../docs/"
     }
 }
