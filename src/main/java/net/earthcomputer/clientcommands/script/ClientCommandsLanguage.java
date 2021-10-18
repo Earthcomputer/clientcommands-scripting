@@ -35,7 +35,9 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
                 .allowAllAccess(true)
                 .allowIO(true)
                 .allowExperimentalOptions(true)
-                .option("js.nashorn-compat", "true");
+                .option("js.commonjs-require", "true")
+                .option("js.nashorn-compat", "true")
+                .option("js.ecmascript-version", "2022");
 
         build.options(extraJsOptions);
         if (currentDir == null) {
