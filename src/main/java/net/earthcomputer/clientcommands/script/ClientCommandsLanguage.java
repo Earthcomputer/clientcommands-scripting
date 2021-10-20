@@ -6,12 +6,12 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import xyz.wagyourtail.jsmacros.client.JsMacros;
 import xyz.wagyourtail.jsmacros.core.Core;
-import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
+import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import xyz.wagyourtail.jsmacros.core.language.impl.JavascriptLanguageDefinition;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 
 public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
@@ -27,7 +27,7 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
     }
 
     @Override
-    protected Context buildContext(Path currentDir, Map<String, String> extraJsOptions, Map<String, Object> globals, Map<String, BaseLibrary> libs) throws IOException {
+    protected Context buildContext(File currentDir, Map<String, String> extraJsOptions, Map<String, Object> globals, Map<String, BaseLibrary> libs) throws IOException {
         Context.Builder build = Context.newBuilder("js")
                 .engine(engine)
                 .allowHostAccess(HostAccess.ALL)
@@ -35,14 +35,16 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
                 .allowAllAccess(true)
                 .allowIO(true)
                 .allowExperimentalOptions(true)
-                .option("js.nashorn-compat", "true");
+                .option("js.commonjs-require", "true")
+                .option("js.nashorn-compat", "true")
+                .option("js.ecmascript-version", "2022");
 
         build.options(extraJsOptions);
         if (currentDir == null) {
-            currentDir = runner.config.macroFolder.toPath();
+            currentDir = runner.config.macroFolder;
         }
-        build.currentWorkingDirectory(currentDir);
-        build.option("js.commonjs-require-cwd", currentDir.toFile().getCanonicalPath());
+        build.currentWorkingDirectory(currentDir.toPath());
+        build.option("js.commonjs-require-cwd", currentDir.getCanonicalPath());
 
         final Context con = build.build();
 
@@ -62,7 +64,7 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
     }
 
     @Override
-    public Map<String, BaseLibrary> retrieveLibs(ContextContainer<Context> context) {
+    public Map<String, BaseLibrary> retrieveLibs(BaseScriptContext<Context> context) {
         return jsLanguage.retrieveLibs(context);
     }
 
@@ -72,7 +74,7 @@ public class ClientCommandsLanguage extends JavascriptLanguageDefinition {
     }
 
     @Override
-    public Map<String, BaseLibrary> retrievePerExecLibs(ContextContainer<Context> context) {
+    public Map<String, BaseLibrary> retrievePerExecLibs(BaseScriptContext<Context> context) {
         return jsLanguage.retrievePerExecLibs(context);
     }
 }

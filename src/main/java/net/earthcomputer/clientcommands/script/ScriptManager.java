@@ -20,8 +20,8 @@ import org.jetbrains.annotations.Nullable;
 import xyz.wagyourtail.jsmacros.client.JsMacros;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
-import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
-import xyz.wagyourtail.jsmacros.core.language.ScriptContext;
+import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
+import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 import xyz.wagyourtail.jsmacros.core.library.impl.FJsMacros;
 import xyz.wagyourtail.jsmacros.core.library.impl.FWrapper;
 
@@ -57,7 +57,7 @@ public class ScriptManager {
     private static final Map<String, String> legacyScripts = new HashMap<>();
 
     private static final List<ThreadInstance> runningThreads = new ArrayList<>();
-    private static final Map<ScriptContext<?>, AdditionalContextInfo> additionalContextInfo = new WeakHashMap<>();
+    private static final Map<BaseScriptContext<?>, AdditionalContextInfo> additionalContextInfo = new WeakHashMap<>();
 
     public static void inject() {
         LOGGER.info("Injecting clientcommands into jsmacros");
@@ -120,7 +120,7 @@ public class ScriptManager {
             return thread;
         }
         Thread currentThread = Thread.currentThread();
-        if (currentThread != scriptContext().getMainThread().get()) {
+        if (currentThread != scriptContext().getMainThread()) {
             return null;
         }
         thread = new ScriptThread(() -> null, false).thread;
@@ -158,17 +158,18 @@ public class ScriptManager {
     }
 
     static boolean isMainThreadRunning() {
-        Thread mainThread = scriptContext().getMainThread().get();
+        Thread mainThread = scriptContext().getMainThread();
         return mainThread != null && mainThread.isAlive();
     }
 
     @Nullable
-    static ContextContainer<?> currentContext() {
-        return Core.instance.eventContexts.get(Thread.currentThread());
+    static EventContainer<?> currentContext() {
+        return scriptContext().getBoundEvents().get(Thread.currentThread());
     }
 
-    static ScriptContext<?> scriptContext() {
-        return Core.instance.threadContext.get(Thread.currentThread());
+    static BaseScriptContext<?> scriptContext() {
+        Thread current = Thread.currentThread();
+        return Core.instance.getContexts().stream().filter(e -> e.getBoundThreads().contains(current)).findFirst().orElseThrow();
     }
 
     static AdditionalContextInfo additionalContext() {
@@ -176,7 +177,7 @@ public class ScriptManager {
     }
 
     static <T> T getBinding(String name) {
-        Context context = (Context) scriptContext().getContext().get();
+        Context context = (Context) scriptContext().getContext();
         if (context == null) {
             throw new IllegalStateException("Could not get " + name + " because context is null");
         }
@@ -204,7 +205,7 @@ public class ScriptManager {
         if (scriptSource == null)
             throw SCRIPT_NOT_FOUND_EXCEPTION.create(scriptName);
 
-        language.trigger(scriptSource, null, null);
+        language.trigger(scriptSource, legacyScriptsDir.resolve(scriptName).toFile(), null, null);
     }
 
     static ThreadInstance createThread(ScriptThread handle, Callable<Void> task, boolean daemon) {
@@ -256,7 +257,7 @@ public class ScriptManager {
 
             Semaphore threadStarted = new Semaphore(0);
 
-            Context context = (Context) scriptContext().getContext().get();
+            Context context = (Context) scriptContext().getContext();
             assert context != null;
 
             context.leave();
@@ -321,7 +322,7 @@ public class ScriptManager {
         try {
             if (thread == getFirstRunningThread()) {
                 jsMacros().waitForEvent("JoinedTick", null, javaWrapper().methodToJava(args -> {
-                    ContextContainer<?> context = currentContext();
+                    EventContainer<?> context = currentContext();
                     if (context != null) {
                         context.releaseLock();
                     }
