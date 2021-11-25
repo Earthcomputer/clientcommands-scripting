@@ -8,7 +8,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -54,7 +53,7 @@ public class ScriptWorld {
         BlockEntity be = getWorld().getBlockEntity(new BlockPos(x, y, z));
         if (be == null)
             return null;
-        return ScriptUtil.fromNbt(be.writeNbt(new NbtCompound()));
+        return ScriptUtil.fromNbt(be.createNbt());
     }
 
     public int getBlockLight(int x, int y, int z) {
