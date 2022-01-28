@@ -1,11 +1,19 @@
 // directions
+/**
+ * The cardinal directions
+ */
 export type cardinalDirections = 'east' | 'west' | 'south' | 'north';
+
+/** The cardinal directions by their order in game 0 is south and it increases clockwise (it also decreases counter-clockwise) */
 export const cardinalList: cardinalDirections[] = [
 	'south',
 	'west',
 	'north',
 	'east',
 ];
+/**
+ * Map of the cardinal directions to their unit coordinates
+ */
 export const cardinalRelative: Record<
 	cardinalDirections,
 	{ x: number; z: number }
@@ -17,7 +25,7 @@ export const cardinalRelative: Record<
 };
 
 // non-solid blocks
-const airBlocks = ['air', 'cave_air', 'void_air'];
+const air = ['air', 'cave_air', 'void_air'];
 const water = ['water', 'flowing_water'];
 
 const saplings = [
@@ -53,8 +61,11 @@ const torch = ['torch', 'soul_torch', 'wall_torch', 'soul_wall_torch'];
 
 const rail = ['rail', 'detector_rail', 'activator_rail', 'powered_rail'];
 
+/**
+ * blocks that are safe for the player to pass through (not exhaustive, just some common ones)
+ */
 export const safeNonSolidBlocks: string[] = [
-	...airBlocks,
+	...air,
 	...water,
 	...plants,
 	...torch,
@@ -63,9 +74,15 @@ export const safeNonSolidBlocks: string[] = [
 
 // functions
 
+/**
+ * @returns the user's current heading
+ */
 export const getCurrentHeading = (): cardinalDirections =>
 	cardinalList[(Math.floor((cc.player.yaw + 45) / 90) + 4) % 4];
 
+/**
+ * Centers the user on the block they're currently mostly standing on
+ */
 export const centerOnCurrentBlock = () => {
 	cc.player.snapTo(
 		Math.floor(cc.player.x) + 0.5,
@@ -74,6 +91,9 @@ export const centerOnCurrentBlock = () => {
 	);
 };
 
+/**
+ * @returns the current block below the players feet
+ */
 export const getBlockBelowFeet = (): string =>
 	cc.world.getBlock(
 		Math.floor(cc.player.x),
