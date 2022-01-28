@@ -18,7 +18,7 @@ declare namespace cc {
 	function $(command: string): number | Array<Entity>;
 
 	/**
-	 * Prints a string to client-side chat
+	 * Prints a string to client-side chat (not to the server)
 	 * @param x The string to print
 	 */
 	function print(x: string): void;
