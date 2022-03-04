@@ -17,16 +17,16 @@ public class MixinClientPlayerEntity {
     @Inject(method = "tickMovement", at = @At("HEAD"))
     public void onStartTickMovement(CallbackInfo ci) {
         if (ClientCommandsScripting.isJsMacrosPresent) {
-            wasSprintPressed = MinecraftClient.getInstance().options.keySprint.isPressed();
+            wasSprintPressed = MinecraftClient.getInstance().options.sprintKey.isPressed();
             boolean shouldBeSprinting = (wasSprintPressed && !ScriptManager.blockingInput()) || ScriptManager.isSprinting();
-            ((KeyBindingAccessor) MinecraftClient.getInstance().options.keySprint).setPressed(shouldBeSprinting);
+            ((KeyBindingAccessor) MinecraftClient.getInstance().options.sprintKey).setPressed(shouldBeSprinting);
         }
     }
 
     @Inject(method = "tickMovement", at = @At("RETURN"))
     public void onEndTickMovement(CallbackInfo ci) {
         if (ClientCommandsScripting.isJsMacrosPresent) {
-            ((KeyBindingAccessor) MinecraftClient.getInstance().options.keySprint).setPressed(wasSprintPressed);
+            ((KeyBindingAccessor) MinecraftClient.getInstance().options.sprintKey).setPressed(wasSprintPressed);
         }
     }
 }

@@ -778,7 +778,7 @@ public class ScriptPlayer extends ScriptLivingEntity {
     }
 
     public boolean isSprinting() {
-        return ScriptManager.isCurrentThreadSprinting() || MinecraftClient.getInstance().options.keySprint.isPressed();
+        return ScriptManager.isCurrentThreadSprinting() || MinecraftClient.getInstance().options.sprintKey.isPressed();
     }
 
     public void disconnect() {

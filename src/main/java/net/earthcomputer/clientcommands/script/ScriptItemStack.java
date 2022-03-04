@@ -1,13 +1,11 @@
 package net.earthcomputer.clientcommands.script;
 
-import com.google.common.collect.Lists;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.item.FoodComponent;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
-import net.minecraft.tag.ItemTags;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
 import org.graalvm.polyglot.Value;
@@ -101,10 +99,7 @@ public class ScriptItemStack {
         if (networkHandler == null) {
             return new ArrayList<>();
         }
-        //noinspection StaticPseudoFunctionalStyleMethod
-        return Lists.transform(
-                new ArrayList<>(ItemTags.getTagGroup().getTagsFor(stack.getItem())),
-                ScriptUtil::simplifyIdentifier);
+        return stack.streamTags().map(tag -> ScriptUtil.simplifyIdentifier(tag.id())).toList();
     }
 
 }

@@ -11,7 +11,6 @@ import net.minecraft.block.FallingBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.state.property.Property;
-import net.minecraft.tag.BlockTags;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
 
@@ -152,10 +151,7 @@ public class ScriptBlockState {
         if (networkHandler == null) {
             return new ArrayList<>();
         }
-        //noinspection StaticPseudoFunctionalStyleMethod
-        return Lists.transform(
-                new ArrayList<>(BlockTags.getTagGroup().getTagsFor(state.getBlock())),
-                ScriptUtil::simplifyIdentifier);
+        return state.streamTags().map(tag -> ScriptUtil.simplifyIdentifier(tag.id())).toList();
     }
 
     @SuppressWarnings("unchecked")
