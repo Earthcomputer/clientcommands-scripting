@@ -3,6 +3,7 @@ package net.earthcomputer.clientcommands.script;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.logging.LogUtils;
 import net.earthcomputer.clientcommands.task.LongTask;
 import net.earthcomputer.clientcommands.task.SimpleTask;
 import net.earthcomputer.clientcommands.task.TaskManager;
@@ -13,10 +14,9 @@ import net.minecraft.command.CommandSource;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.TranslatableText;
 import org.apache.commons.io.FileUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Context;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 import xyz.wagyourtail.jsmacros.client.JsMacros;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
@@ -48,7 +48,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class ScriptManager {
-    private static final Logger LOGGER = LogManager.getLogger("ScriptManager");
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final DynamicCommandExceptionType SCRIPT_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(arg -> new TranslatableText("commands.cscript.notFound", arg));
 
     private static ClientCommandsLanguage language;
