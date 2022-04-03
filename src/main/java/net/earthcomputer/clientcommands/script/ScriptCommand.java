@@ -47,6 +47,7 @@ public class ScriptCommand {
         if (!ClientCommandsScripting.isJsMacrosPresent) {
             throw NO_JSMACROS_EXCEPTION.create();
         }
+        warnDeprecated();
         ScriptManager.reloadLegacyScripts();
         sendFeedback("commands.cscript.reload.success");
         return ScriptManager.getLegacyScriptNames().size();
@@ -56,10 +57,7 @@ public class ScriptCommand {
         if (!ClientCommandsScripting.isJsMacrosPresent) {
             throw NO_JSMACROS_EXCEPTION.create();
         }
-        if (!warnedDeprecated) {
-            warnedDeprecated = true;
-            sendFeedback(new TranslatableText("commands.cscript.run.deprecated").formatted(Formatting.YELLOW));
-        }
+        warnDeprecated();
         ScriptManager.executeLegacyScript(name);
         sendFeedback("commands.cscript.run.success");
         return 0;
@@ -69,8 +67,21 @@ public class ScriptCommand {
         if (!ClientCommandsScripting.isJsMacrosPresent) {
             throw NO_JSMACROS_EXCEPTION.create();
         }
+        warnDeprecated();
         ScriptManager.executeScript(name);
         sendFeedback("commands.cscript.run.success");
         return 0;
+    }
+
+    private static void warnDeprecated() {
+        if (!warnedDeprecated) {
+            warnedDeprecated = true;
+            sendFeedback(new TranslatableText("commands.cscript.deprecated")
+                    .append(new TranslatableText("commands.cscript.nojsmacros.link")
+                            .styled(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, JSMACROS_URL))
+                                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText(JSMACROS_URL)))
+                                    .withUnderline(true)))
+                    .formatted(Formatting.YELLOW));
+        }
     }
 }

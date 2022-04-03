@@ -1,6 +1,10 @@
 # Clientcommands Scripting
 This repository is the scripting module of [clientcommands](https://github.com/Earthcomputer/clientcommands). This mod is distributed as part of clientcommands, so please refer to clientcommands' readme for installation instructions.
 
+## Deprecated for Removal
+
+Clientcommands Scripting is deprecated for removal in 1.19. [JSMacros](https://github.com/wagyourtail/JSMacros) is the recommended replacement.
+
 ## Contributing
 As this mod is a submodule of clientcommands, you must clone it as a submodule of clientcommands and work with it that way.
 
