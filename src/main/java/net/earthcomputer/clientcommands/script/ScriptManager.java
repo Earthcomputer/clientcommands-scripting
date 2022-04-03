@@ -7,11 +7,11 @@ import com.mojang.logging.LogUtils;
 import net.earthcomputer.clientcommands.task.LongTask;
 import net.earthcomputer.clientcommands.task.SimpleTask;
 import net.earthcomputer.clientcommands.task.TaskManager;
+import net.fabricmc.fabric.api.client.command.v1.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.command.CommandSource;
-import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.TranslatableText;
 import org.apache.commons.io.FileUtils;
 import org.graalvm.polyglot.Context;
@@ -92,7 +92,7 @@ public class ScriptManager {
         }
     }
 
-    public static SuggestionProvider<ServerCommandSource> getScriptSuggestions() {
+    public static SuggestionProvider<FabricClientCommandSource> getScriptSuggestions() {
         return (ctx, builder) -> CompletableFuture.supplyAsync(() -> {
             Path macroFolder = JsMacros.core.config.macroFolder.toPath();
             if (!Files.exists(macroFolder)) {

@@ -3,8 +3,8 @@ package net.earthcomputer.clientcommands.script;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import net.fabricmc.fabric.api.client.command.v1.FabricClientCommandSource;
 import net.minecraft.command.CommandSource;
-import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.LiteralText;
@@ -12,8 +12,8 @@ import net.minecraft.text.TranslatableText;
 import net.minecraft.util.Formatting;
 
 import static com.mojang.brigadier.arguments.StringArgumentType.*;
-import static net.earthcomputer.clientcommands.command.ClientCommandManager.*;
-import static net.minecraft.server.command.CommandManager.*;
+import static net.earthcomputer.clientcommands.command.ClientCommandHelper.*;
+import static net.fabricmc.fabric.api.client.command.v1.ClientCommandManager.*;
 
 public class ScriptCommand {
     private static final String JSMACROS_URL = "https://www.curseforge.com/minecraft/mc-mods/jsmacros";
@@ -24,9 +24,7 @@ public class ScriptCommand {
                             .withUnderline(true))));
     private static boolean warnedDeprecated = false;
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
-        addClientSideCommand("cscript");
-
+    public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
         dispatcher.register(literal("cscript")
             .then(literal("reload")
                 .executes(ctx -> reloadScripts()))
