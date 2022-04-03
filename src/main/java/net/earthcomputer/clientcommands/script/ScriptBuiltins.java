@@ -3,15 +3,15 @@ package net.earthcomputer.clientcommands.script;
 import com.google.common.collect.ImmutableMap;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.earthcomputer.clientcommands.command.ClientCommandManager;
-import net.earthcomputer.clientcommands.command.ClientEntitySelector;
-import net.earthcomputer.clientcommands.command.FakeCommandSource;
-import net.earthcomputer.clientcommands.command.arguments.ClientEntityArgumentType;
+import dev.xpple.clientarguments.arguments.CEntityArgumentType;
+import dev.xpple.clientarguments.arguments.CEntitySelector;
+import net.fabricmc.fabric.api.client.command.v1.FabricClientCommandSource;
+import net.fabricmc.fabric.impl.command.client.ClientCommandInternals;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientCommandSource;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.text.LiteralText;
-import net.minecraft.text.TranslatableText;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,13 +57,14 @@ class ScriptBuiltins {
         if (MinecraftClient.getInstance().player == null) {
             throw new IllegalStateException("Not ingame");
         }
-        StringReader reader = new StringReader(command);
         if (command.startsWith("@")) {
+            StringReader reader = new StringReader(command);
             try {
-                ClientEntitySelector selector = ClientEntityArgumentType.entities().parse(reader);
+                CEntitySelector selector = CEntityArgumentType.entities().parse(reader);
                 if (reader.getRemainingLength() != 0)
                     throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownCommand().createWithContext(reader);
-                List<Entity> entities = selector.getEntities(new FakeCommandSource(MinecraftClient.getInstance().player));
+                //noinspection ConstantConditions
+                List<? extends Entity> entities = selector.getEntities((FabricClientCommandSource) new ClientCommandSource(MinecraftClient.getInstance().getNetworkHandler(), MinecraftClient.getInstance()));
                 List<Object> ret = new ArrayList<>(entities.size());
                 for (Entity entity : entities)
                     ret.add(ScriptEntity.create(entity));
@@ -72,13 +73,7 @@ class ScriptBuiltins {
                 throw new IllegalArgumentException("Invalid selector syntax", e);
             }
         }
-        String commandName = reader.readUnquotedString();
-        reader.setCursor(0);
-        if (!ClientCommandManager.isClientSideCommand(commandName)) {
-            ClientCommandManager.sendError(new TranslatableText("commands.client.notClient"));
-            return 1;
-        }
-        return ClientCommandManager.executeCommand(reader, command);
+        return ClientCommandInternals.executeCommand(command);
     }
 
     public static void print(String message) {
