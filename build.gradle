@@ -15,6 +15,9 @@ repositories {
         name = 'JitPack'
         url = 'https://jitpack.io/'
     }
+    maven {
+        url = 'https://maven.xpple.dev/maven2'
+    }
 }
 
 dependencies {
