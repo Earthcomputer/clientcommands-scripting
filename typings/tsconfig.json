@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "module": "None",
+    },
+    "files": [
+        "index.d.ts"
+    ],
+    "typedocOptions": {
+        "entryPoints": ["index.d.ts"],
+        "out": "../docs/"
+    }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "clientcommands-scripting",
+  "version": "1.0.0",
+  "description": "This repository is the scripting module of [clientcommands](https://github.com/Earthcomputer/clientcommands). This mod is distributed as part of clientcommands, so please refer to clientcommands' readme for installation instructions.",
+  "typings": "index.d.ts",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "docs": "typedoc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Earthcomputer/clientcommands-scripting.git"
+  },
+  "author": "Earthcomputer",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Earthcomputer/clientcommands-scripting/issues"
+  },
+  "homepage": "https://github.com/Earthcomputer/clientcommands-scripting#readme",
+  "devDependencies": {
+    "typedoc": "^0.22.5"
+  }
+}
